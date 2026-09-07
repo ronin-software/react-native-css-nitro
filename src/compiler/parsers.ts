@@ -1176,7 +1176,7 @@ function boxShadow(
   { value }: DeclarationType<"box-shadow">,
   b: DeclarationBuilder,
 ) {
-  return value.map((shadow): ValueType[] => {
+  return value.map((shadow): ValueType => {
     const shadowColor = color(shadow.color, b);
     const blurRadius = length(shadow.blur, b) ?? 0;
     const spreadDistance = length(shadow.spread, b) ?? 0;
@@ -1184,7 +1184,7 @@ function boxShadow(
     const offsetY = length(shadow.yOffset, b) ?? 0;
 
     if (!shadowColor) {
-      return [];
+      return { color: "transparent", blurRadius: 0, spreadDistance: 0, offsetX: 0, offsetY: 0 };
     }
 
     const boxShadow: Partial<Record<keyof BoxShadowValue, ValueType>> = {
@@ -1199,7 +1199,7 @@ function boxShadow(
       boxShadow.inset = true;
     }
 
-    return [boxShadow];
+    return boxShadow as ValueType;
   });
 }
 
@@ -2011,6 +2011,8 @@ function fontSizeDeclaration(
 ) {
   const value = fontSize(declaration.value, b);
   b.set("fontSize", value);
+  // em units resolve against the element's own font size (upstream parity)
+  b.setVariable("__rn-css-em", value);
 }
 
 function fontStyle(value: FontStyle, _b: DeclarationBuilder) {

@@ -202,6 +202,103 @@ namespace margelo::nitro::cssnitro {
             return value;
         }
 
+        // box-shadow from runtime variables:
+        // ["fn", "boxShadow", parts...] where parts is a (possibly nested)
+        // list of ["inset"?, offsetX, offsetY, blurRadius, spreadDistance?,
+        // color?]. Fully transparent shadows are filtered out.
+        if (name == "boxShadow" && fnArgs.size() >= 3) {
+            AnyArray shadows;
+
+            auto isTransparent = [](const std::string &c) {
+                if (c == "transparent") return true;
+                if (c.size() == 5) return c.substr(3) == "00";   // #RGBA
+                if (c.size() == 9) return c.substr(7) == "00";   // #RRGGBBAA
+                return false;
+            };
+
+            // Parse one parts list; nested arrays are separate shadows.
+            // Color may precede or follow the lengths.
+            std::function<void(const AnyArray &, bool)> parseParts =
+                    [&](const AnyArray &parts, bool inset) {
+                bool curInset = inset;
+                std::vector<double> nums;
+                std::string pendingColor;
+                bool hasPendingColor = false;
+
+                auto flush = [&](const std::string &color) {
+                    if (nums.size() >= 3) {
+                        if (!isTransparent(color)) {
+                            AnyObject shadow;
+                            shadow["offsetX"] = AnyValue(nums[0]);
+                            shadow["offsetY"] = AnyValue(nums[1]);
+                            shadow["blurRadius"] = AnyValue(nums[2]);
+                            if (nums.size() > 3) {
+                                shadow["spreadDistance"] = AnyValue(nums[3]);
+                            }
+                            if (!color.empty()) {
+                                shadow["color"] = AnyValue(color);
+                            }
+                            if (curInset) {
+                                shadow["inset"] = AnyValue(true);
+                            }
+                            shadows.push_back(AnyValue(std::move(shadow)));
+                        }
+                        // Reset even when filtered — leftovers must not leak
+                        // into the next shadow
+                        nums.clear();
+                        curInset = false;
+                    }
+                };
+
+                for (const auto &part: parts) {
+                    if (std::holds_alternative<std::string>(part)) {
+                        const std::string &s = std::get<std::string>(part);
+                        if (s == "inset") {
+                            curInset = true;
+                        } else if (hasPendingColor || nums.size() >= 3) {
+                            // color after lengths: closes this shadow
+                            flush(s);
+                            hasPendingColor = false;
+                        } else {
+                            // color before lengths
+                            pendingColor = s;
+                            hasPendingColor = true;
+                        }
+                    } else if (std::holds_alternative<double>(part)) {
+                        nums.push_back(std::get<double>(part));
+                    } else if (std::holds_alternative<int64_t>(part)) {
+                        nums.push_back(static_cast<double>(std::get<int64_t>(part)));
+                    } else if (std::holds_alternative<AnyArray>(part)) {
+                        flush(pendingColor);
+                        pendingColor.clear();
+                        hasPendingColor = false;
+                        parseParts(std::get<AnyArray>(part), curInset);
+                    }
+                }
+                flush(hasPendingColor ? pendingColor : "");
+            };
+
+            // Args mix: resolved var arrays, null markers for unresolved
+            // vars, and flat parts from inlined variables. A null is a
+            // boundary between variable groups.
+            std::vector<AnyValue> buffer;
+            for (size_t i = 2; i < fnArgs.size(); i++) {
+                AnyValue resolved = resolveStyleValueArg(fnArgs[i], get, variableScope);
+                if (std::holds_alternative<AnyArray>(resolved)) {
+                    parseParts(std::get<AnyArray>(resolved), false);
+                } else if (std::holds_alternative<std::monostate>(resolved)) {
+                    parseParts(buffer, false);
+                    buffer.clear();
+                } else {
+                    buffer.push_back(resolved);
+                }
+            }
+            if (!buffer.empty()) {
+                parseParts(buffer, false);
+            }
+            return AnyValue(std::move(shadows));
+        }
+
         // Platform/display metrics, mirroring upstream's runtime resolvers
         // (hairlineWidth ≈ StyleSheet.hairlineWidth, pixelScale ≈ PixelRatio.get())
         if (name == "hairlineWidth" && fnArgs.size() >= 2) {

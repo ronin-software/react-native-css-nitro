@@ -516,8 +516,16 @@ export class ReferenceRegistry {
           return this.resolveUnit(kind, arg, variableScope);
         }
       }
-      // single-element lists around fn/marker values
-      if (value.length === 1 && value[0] !== undefined) {
+      // Single-element lists around fn/marker values unwrap; other arrays
+      // (e.g. boxShadow) are legitimate values
+      if (
+        value.length === 1 &&
+        Array.isArray(value[0]) &&
+        (value[0][0] === "fn" ||
+          (value[0].length >= 3 &&
+            typeof value[0][0] === "object" &&
+            typeof value[0][1] === "string"))
+      ) {
         return this.resolveValue(value[0], variableScope);
       }
     }
@@ -535,6 +543,94 @@ export class ReferenceRegistry {
         return undefined as unknown as AnyValue;
       }
       return this.resolveVar(varName, args[1], variableScope);
+    }
+    if (name === "boxShadow" && args.length >= 1) {
+      // ["fn", "boxShadow", parts...] — parts are (possibly nested) lists of
+      // ["inset"?, x, y, blur, spread?, color?]; transparent shadows filtered
+      const shadows: Record<string, AnyValue>[] = [];
+
+      const isTransparent = (c: string) =>
+        c === "transparent" ||
+        (c.length === 5 && c.slice(3) === "00") ||
+        (c.length === 9 && c.slice(7) === "00");
+
+      const parseParts = (parts: AnyValue[], inset: boolean) => {
+        let curInset = inset;
+        const nums: number[] = [];
+        let pendingColor = "";
+        let hasPendingColor = false;
+
+        const flush = (color: string) => {
+          if (nums.length >= 3) {
+            if (!isTransparent(color)) {
+              const [x = 0, y = 0, blur = 0, spread] = nums;
+              const shadow: Record<string, AnyValue> = {
+                offsetX: x,
+                offsetY: y,
+                blurRadius: blur,
+              };
+              if (spread !== undefined) {
+                shadow.spreadDistance = spread;
+              }
+              if (color) {
+                shadow.color = color;
+              }
+              if (curInset) {
+                shadow.inset = true;
+              }
+              shadows.push(shadow);
+            }
+            // Reset even when filtered — leftovers must not leak into the
+            // next shadow
+            nums.length = 0;
+            curInset = false;
+          }
+        };
+
+        for (const part of parts) {
+          if (typeof part === "string") {
+            if (part === "inset") {
+              curInset = true;
+            } else if (hasPendingColor || nums.length >= 3) {
+              // color after lengths: closes this shadow
+              flush(part);
+              hasPendingColor = false;
+            } else {
+              // color before lengths
+              pendingColor = part;
+              hasPendingColor = true;
+            }
+          } else if (typeof part === "number") {
+            nums.push(part);
+          } else if (Array.isArray(part)) {
+            flush(pendingColor);
+            pendingColor = "";
+            hasPendingColor = false;
+            parseParts(part, curInset);
+          }
+        }
+        flush(hasPendingColor ? pendingColor : "");
+      };
+
+      // Args mix: resolved var arrays, null markers for unresolved vars, and
+      // flat parts from inlined variables. A null is a boundary between
+      // variable groups.
+      let buffer: AnyValue[] = [];
+      for (const arg of args) {
+        const resolved = this.resolveValue(arg, variableScope);
+        if (Array.isArray(resolved)) {
+          parseParts(resolved, false);
+        } else if (resolved === undefined || resolved === null) {
+          parseParts(buffer, false);
+          buffer = [];
+        } else {
+          buffer.push(resolved);
+        }
+      }
+      if (buffer.length > 0) {
+        parseParts(buffer, false);
+      }
+      return shadows;
     }
     // Math/platform functions are owned by the C++ doctests
     return undefined as unknown as AnyValue;

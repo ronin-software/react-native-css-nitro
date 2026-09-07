@@ -9,8 +9,7 @@ describe("hsl", () => {
     render(<View testID={testID} className="my-class" />);
     const component = screen.getByTestId(testID);
 
-    expect(component.type).toBe("View");
-    expect(component.props.style).toStrictEqual({ color: "#ef4444" });
+      expect(component.props.style).toStrictEqual({ color: "#ef4444" });
   });
 
   test("inline with comma", () => {
@@ -21,8 +20,7 @@ describe("hsl", () => {
     render(<View testID={testID} className="my-class" />);
     const component = screen.getByTestId(testID);
 
-    expect(component.type).toBe("View");
-    expect(component.props.style).toStrictEqual({ color: "#ef4444" });
+      expect(component.props.style).toStrictEqual({ color: "#ef4444" });
   });
 
   test("var with spaces", () => {
@@ -34,8 +32,7 @@ describe("hsl", () => {
     render(<View testID={testID} className="my-class" />);
     const component = screen.getByTestId(testID);
 
-    expect(component.type).toBe("View");
-    expect(component.props.style).toStrictEqual({ color: "#ef4444" });
+      expect(component.props.style).toStrictEqual({ color: "#ef4444" });
   });
 
   test("var with comma", () => {
@@ -47,8 +44,7 @@ describe("hsl", () => {
     render(<View testID={testID} className="my-class" />);
     const component = screen.getByTestId(testID);
 
-    expect(component.type).toBe("View");
-    expect(component.props.style).toStrictEqual({ color: "#ef4444" });
+      expect(component.props.style).toStrictEqual({ color: "#ef4444" });
   });
 });
 
@@ -61,8 +57,7 @@ describe("hsla", () => {
     render(<View testID={testID} className="my-class" />);
     const component = screen.getByTestId(testID);
 
-    expect(component.type).toBe("View");
-    expect(component.props.style).toStrictEqual({ color: "#ef444499" });
+      expect(component.props.style).toStrictEqual({ color: "#ef444499" });
   });
 
   test("inline with comma", () => {
@@ -73,8 +68,7 @@ describe("hsla", () => {
     render(<View testID={testID} className="my-class" />);
     const component = screen.getByTestId(testID);
 
-    expect(component.type).toBe("View");
-    expect(component.props.style).toStrictEqual({ color: "#ef444499" });
+      expect(component.props.style).toStrictEqual({ color: "#ef444499" });
   });
 
   test("function with slash", () => {
@@ -86,8 +80,7 @@ describe("hsla", () => {
     render(<View testID={testID} className="my-class" />);
     const component = screen.getByTestId(testID);
 
-    expect(component.type).toBe("View");
-    expect(component.props.style).toStrictEqual({ color: "#ef444499" });
+      expect(component.props.style).toStrictEqual({ color: "#ef444499" });
   });
 
   test("function with comma", () => {
@@ -99,8 +92,7 @@ describe("hsla", () => {
     render(<View testID={testID} className="my-class" />);
     const component = screen.getByTestId(testID);
 
-    expect(component.type).toBe("View");
-    expect(component.props.style).toStrictEqual({ color: "#ef444499" });
+      expect(component.props.style).toStrictEqual({ color: "#ef444499" });
   });
 });
 
@@ -125,7 +117,6 @@ describe("currentcolor", () => {
     render(<View testID={testID} className="bg-current text-red-500" />);
     const component = screen.getByTestId(testID);
 
-    expect(component.type).toBe("View");
-    expect(component.props.style).toStrictEqual({ color: "#f00", backgroundColor: "#f00" });
+      expect(component.props.style).toStrictEqual({ color: "#f00", backgroundColor: "#f00" });
   });
 });

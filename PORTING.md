@@ -89,8 +89,13 @@ the styled() HOC). Bugs found by porting:
 
 ## Score (vs upstream's 220 native tests)
 
-- Passing in jest: 50 (of 61 runnable; 10 skipped with documented blockers,
-  5 suites parked in src/__tests__/blocked/ pending unported APIs)
+- 93 passing, 21 skipped with documented blockers, of 115 ported tests
+  (17 of 28 upstream native files ported; 5 suites parked in
+  src/__tests__/blocked/ pending unported APIs: styled() HOC, useNativeCss,
+  VariableContextProvider)
+- New features this round: box-shadow (compile-time + runtime var pattern
+  incl. inset/multi/transparent filtering), @property defaults interplay,
+  em via __rn-css-em font-size variable, selectorPrefix type exemption
 - Remaining checklist feature work surfaced by tests: container/group scope
-  hierarchy, transform functions in var() values, safe-area env units,
-  filters, styled() HOC, useNativeCss hook
+  hierarchy (setScope unwired), transform functions in var() values,
+  safe-area env units, filters, styled() HOC, useNativeCss hook
