@@ -301,7 +301,16 @@ namespace margelo::nitro::cssnitro {
                                       create(nullptr))
                      .first;
         }
-        it->second->set(variables);
+        // Normalize keys: strip leading "--" (lookups use bare names)
+        auto normalized = ::margelo::nitro::AnyMap::make();
+        for (const auto &kv : variables->getMap()) {
+            std::string name = kv.first;
+            if (name.rfind("--", 0) == 0) {
+                name = name.substr(2);
+            }
+            normalized->setAny(name, kv.second);
+        }
+        it->second->set(normalized);
     }
 
     void HybridStyleRegistry::setPlatform(const std::string &platform) {

@@ -3,8 +3,9 @@
  * and `vars`. Ports the upstream contract onto this repo's runtime
  * (`useStyledProps` + the C++ StyleRegistry).
  */
-import { createElement, useMemo, type ComponentType } from "react";
+import { createElement, useContext, useMemo, type ComponentType, type ReactNode } from "react";
 
+import { VariableValuesContext } from "./native/contexts";
 import { useStyledProps } from "./native/useStyled";
 import { getStyleRegistry } from "./specs/StyleRegistry";
 
@@ -199,6 +200,22 @@ export function useStyledComponent(
 }
 
 /**
+ * Inherited inline variable VALUES (from VariableContextProvider).
+ * Distinct from VariableContext (a scope identifier for rule cascades).
+ */
+export function VariableContextProvider(props: {
+  value: Record<string, any>;
+  children: ReactNode;
+}) {
+  const inherited = useContext(VariableValuesContext) ?? {};
+  const value = useMemo(
+    () => ({ ...inherited, ...props.value }),
+    [inherited, props.value],
+  );
+  return createElement(VariableValuesContext.Provider, { value }, props.children);
+}
+
+/**
  * styled() HOC: wraps a base component and applies styles from className.
  * Mirrors upstream's react-native-css `styled` contract.
  */
@@ -246,3 +263,4 @@ function getDisplayName(component: ComponentType<any> | unknown): string {
 }
 
 export { useColorScheme } from "./native/useColorScheme";
+export { colorScheme } from "./native/colorScheme";

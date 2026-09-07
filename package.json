@@ -151,9 +151,7 @@
     "transformIgnorePatterns": [
       "node_modules/(?!(react-native|@react-native|react-native-reanimated|react-native-worklets)/)"
     ],
-    "testPathIgnorePatterns": [
-      "<rootDir>/src/__tests__/blocked/"
-    ],
+    "testPathIgnorePatterns": ["<rootDir>/example/node_modules", "<rootDir>/lib/", "<rootDir>/bench/", "<rootDir>/src/__tests__/blocked/"],
     "moduleNameMapper": {
       "^react-native-css/native-internal$": "/Users/dscanlon/nativewind-e2e/react-native-css/src/native-internal/index.ts",
       "^react-native-css/native/(.*)$": "/Users/dscanlon/nativewind-e2e/react-native-css/src/native/$1",

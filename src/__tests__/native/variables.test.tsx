@@ -2,7 +2,7 @@ import { memo, useEffect } from "react";
 import type { ViewProps } from "react-native";
 
 import { render, screen } from "@testing-library/react-native";
-import { styled, VariableContextProvider } from "react-native-css";
+import { styled, VariableContextProvider } from "../../runtime";
 import { View } from "../../components/View";
 import { registerCSS, testID } from "../../jest";
 

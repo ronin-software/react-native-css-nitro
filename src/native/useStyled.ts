@@ -6,9 +6,10 @@ import {
   type PseudoClassType,
 } from "../specs/StyleRegistry";
 import { testAttributeQuery } from "./attributeQuery";
-import { ContainerContext, VariableContext } from "./contexts";
+import { ContainerContext, VariableContext, VariableValuesContext } from "./contexts";
 
 const EMPTY_DECLARATIONS: Declarations = {};
+const renderCount = new Map<unknown, number>();
 const REDUCER = <T>(state: T) => ({ ...state });
 
 /** Marker produced by styled(…, { passThrough: true }) */
@@ -56,15 +57,39 @@ export function useStyledProps(
 ) {
   const [instance, rerender] = useReducer(REDUCER, EMPTY_DECLARATIONS);
   const StyleRegistry = getStyleRegistry();
+  const registry = StyleRegistry as {
+    renderPaused?: boolean;
+    resumeRender?: () => void;
+  };
+  registry.renderPaused = true;
+  useEffect(() => {
+    // Commit finished — resume notifies and flush render-phase changes
+    registry.resumeRender?.();
+  });
+
+  if (process.env.NW_TRACE) {
+    renderCount.set(instance, (renderCount.get(instance) ?? 0) + 1);
+    console.log('RENDER', componentId, 'x', renderCount.get(instance));
+  }
 
   let variableScope = use(VariableContext);
   let containerScope = use(ContainerContext);
 
   // Pass-through / vars() markers in the style prop extend this component's
   // classes and inline variables (upstream: INLINE_RULE_SYMBOL / VAR_SYMBOL)
+  const inheritedVars = use(VariableValuesContext);
   const extraClassNames: string[] = [];
   const inlineVariables: Record<string, any> = {};
   extractMarkers(originalProps.style, extraClassNames, inlineVariables);
+  // Inherited provider variables apply unless the component sets its own
+  if (inheritedVars) {
+    for (const [key, value] of Object.entries(inheritedVars)) {
+      const bare = key.startsWith("--") ? key.slice(2) : key;
+      if (!(bare in inlineVariables)) {
+        inlineVariables[bare] = value;
+      }
+    }
+  }
   const effectiveClassName =
     className && extraClassNames.length
       ? `${className} ${extraClassNames.join(" ")}`

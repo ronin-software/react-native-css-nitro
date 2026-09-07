@@ -46,6 +46,7 @@ export class ReferenceRegistry {
   private colorScheme: "light" | "dark" | null = null;
   private componentStates = new Map<string, ComponentState>();
   private componentVars = new Map<string, Record<string, AnyValue>>();
+
   private rerenders = new Map<string, () => void>();
 
   /** Harness hook: Appearance color scheme */
@@ -138,7 +139,7 @@ export class ReferenceRegistry {
   }
 
   getDeclarations(
-    _componentId: string,
+    componentId: string,
     classNames: string,
     variableScope: string,
     _containerScope: string,
@@ -156,7 +157,9 @@ export class ReferenceRegistry {
           attributeQueries.push([rule.id, rule.aq]);
         }
         if (rule.v) {
-          declarations.variableScope = variableScope;
+          // Components with variables get their own scope; children inherit
+          // it through the VariableContext provider chain (C++ parity)
+          declarations.variableScope = componentId;
         }
         if (rule.pq) {
           if (rule.pq.a) {
@@ -214,7 +217,23 @@ export class ReferenceRegistry {
       return 0;
     });
 
-    // Inline variables
+    // Inline variables — notify dependents only when a value actually
+    // changes (memoized children rely on own-state rerenders)
+    // Mounting components render with their variables applied — no notify
+    // (a notify here would dispatch during React's render phase)
+    const isMount = !this.rerenders.has(componentId);
+
+    // Notify dependents only when the scope's variables actually changed
+    // during application (per-rule checks oscillate when multiple rules
+    // write the same variable).
+    const scopeSnapshot = () =>
+      JSON.stringify(
+        Object.fromEntries(
+          this.scopedVariables.get(variableScope)?.entries() ?? [],
+        ),
+      );
+    const before = scopeSnapshot();
+
     for (const rule of allRules) {
       if (rule.v) {
         for (const [name, value] of Object.entries(rule.v)) {
@@ -228,6 +247,15 @@ export class ReferenceRegistry {
     if (componentVars) {
       for (const [name, value] of Object.entries(componentVars)) {
         this.setVariable(variableScope, name, value);
+      }
+    }
+
+    if (scopeSnapshot() !== before) {
+      if (this.renderPaused) {
+        // Render-phase change: flush after the commit (see useStyled)
+        this.pendingNotify = true;
+      } else if (!isMount) {
+        this.notifyAll();
       }
     }
 
@@ -699,15 +727,38 @@ export class ReferenceRegistry {
       }
       return undefined;
     }
+    // The compiler stores variable/declaration values as single-element lists
+    // ([10], [["fn", …]]) — unwrap one layer; item-list variables were handled
+    // above
+    if (Array.isArray(raw) && raw.length === 1 && raw[0] !== undefined) {
+      return raw[0];
+    }
+
     return raw;
   }
 
-  private setVariable(scope: string, name: string, value: AnyValue): void {
-    let map = this.scopedVariables.get(scope);
-    if (!map) {
-      map = new Map();
-      this.scopedVariables.set(scope, map);
+  /** True while a component is rendering — render-phase notifies are dropped */
+  private renderPaused = false;
+  private pendingNotify = false;
+
+  /** Called by the hook after commit: resume notifies and flush pending */
+  resumeRender(): void {
+    this.renderPaused = false;
+    if (this.pendingNotify) {
+      this.pendingNotify = false;
+      this.notifyAll();
     }
+  }
+
+  private setVariable(scope: string, name: string, value: AnyValue): void {
+    const map = (() => {
+      let m = this.scopedVariables.get(scope);
+      if (!m) {
+        m = new Map();
+        this.scopedVariables.set(scope, m);
+      }
+      return m;
+    })();
     map.set(name, value);
   }
 

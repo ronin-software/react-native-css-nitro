@@ -10,6 +10,7 @@ export {
   vars,
   usePassthrough,
   VAR_SYMBOL,
+  VariableContextProvider,
 } from "./runtime";
 export type { StyledConfiguration, StyledOptions } from "./runtime";
 export type * from "./specs/StyleRegistry";
