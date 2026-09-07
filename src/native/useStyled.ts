@@ -1,6 +1,10 @@
 import { use, useEffect, useMemo, useReducer } from "react";
 
-import { StyleRegistry, type Declarations } from "../specs/StyleRegistry";
+import {
+  getStyleRegistry,
+  type Declarations,
+  type PseudoClassType,
+} from "../specs/StyleRegistry";
 import { testAttributeQuery } from "./attributeQuery";
 import { ContainerContext, VariableContext } from "./contexts";
 
@@ -14,6 +18,7 @@ export function useStyledProps(
   isDisabled = false,
 ) {
   const [instance, rerender] = useReducer(REDUCER, EMPTY_DECLARATIONS);
+  const StyleRegistry = getStyleRegistry();
 
   let variableScope = use(VariableContext);
   let containerScope = use(ContainerContext);
@@ -113,32 +118,34 @@ export function useStyledProps(
   };
 }
 
-const onPressIn = (id: string, props: Record<string, any>) => () => {
-  props.onPressIn?.();
-  StyleRegistry.updateComponentState(id, "active", true);
-};
+// The original handler is captured before the wrapper is assigned to the
+// props object, otherwise the wrapper would call itself
+const stateHandler =
+  (id: string, type: PseudoClassType, value: boolean, eventKey: string) =>
+  (props: Record<string, any>) => {
+    const original = props[eventKey];
+    return () => {
+      if (typeof original === "function") {
+        original();
+      }
+      getStyleRegistry().updateComponentState(id, type, value);
+    };
+  };
 
-const onPressOut = (id: string, props: Record<string, any>) => () => {
-  props.onPressIn?.();
-  StyleRegistry.updateComponentState(id, "active", false);
-};
+const onPressIn = (id: string, props: Record<string, any>) =>
+  stateHandler(id, "active", true, "onPressIn")(props);
 
-const onHoverIn = (id: string, props: Record<string, any>) => () => {
-  props.onHoverIn?.();
-  StyleRegistry.updateComponentState(id, "hover", true);
-};
+const onPressOut = (id: string, props: Record<string, any>) =>
+  stateHandler(id, "active", false, "onPressOut")(props);
 
-const onHoverOut = (id: string, props: Record<string, any>) => () => {
-  props.onHoverOut?.();
-  StyleRegistry.updateComponentState(id, "hover", false);
-};
+const onHoverIn = (id: string, props: Record<string, any>) =>
+  stateHandler(id, "hover", true, "onHoverIn")(props);
 
-const onFocus = (id: string, props: Record<string, any>) => () => {
-  props.onFocus?.();
-  StyleRegistry.updateComponentState(id, "focus", true);
-};
+const onHoverOut = (id: string, props: Record<string, any>) =>
+  stateHandler(id, "hover", false, "onHoverOut")(props);
 
-const onBlur = (id: string, props: Record<string, any>) => () => {
-  props.onBlur?.();
-  StyleRegistry.updateComponentState(id, "focus", false);
-};
+const onFocus = (id: string, props: Record<string, any>) =>
+  stateHandler(id, "focus", true, "onFocus")(props);
+
+const onBlur = (id: string, props: Record<string, any>) =>
+  stateHandler(id, "focus", false, "onBlur")(props);

@@ -132,7 +132,7 @@ function extractRule(rule: Rule, stylesheet: CompilerStyleSheet) {
 
       if (stylesheet.pushSelectors(selectors)) {
         stylesheet.addDeclarations(declarations?.declarations);
-        stylesheet.addDeclarations(declarations?.importantDeclarations);
+        stylesheet.addImportantDeclarations(declarations?.importantDeclarations);
 
         for (const nestedRule of rules) {
           extractRule(nestedRule, stylesheet);

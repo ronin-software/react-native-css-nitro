@@ -8,6 +8,8 @@ import type {
   HybridContainerQuery,
   SpecificityArray,
 } from "../specs/StyleRegistry/HybridStyleRegistry.nitro";
+
+export type { AttributeQueryRule };
 import type { CompilerOptions } from "./compiler.types";
 
 interface PseudoClass {

@@ -1,11 +1,11 @@
 import { StyleSheet, View } from "react-native";
 
-import { multiply, specificity, StyleRegistry } from "react-native-css-nitro";
+import { getStyleRegistry, multiply, specificity } from "react-native-css-nitro";
 import { Text } from "react-native-css-nitro/components/Text";
 
 import "../global.css";
 
-StyleRegistry.addStyleSheet({
+getStyleRegistry().addStyleSheet({
   s: {
     "text-red-500": [
       {

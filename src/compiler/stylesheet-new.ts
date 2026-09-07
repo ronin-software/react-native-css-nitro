@@ -19,7 +19,11 @@ import type { CompilerOptions } from "./compiler.types";
 import { getContainerQuery } from "./container-query";
 import { DeclarationBuilder, parseDeclaration } from "./declarations";
 import { mapMediaQueries } from "./media-query";
-import { SelectorParser, type NormalizedSelector } from "./selectors-new";
+import {
+  SelectorParser,
+  type AttributeQueryRule,
+  type NormalizedSelector,
+} from "./selectors-new";
 
 function createSpecificity(): SpecificityArray {
   return [0, 0, 0, 0, 0];
@@ -209,7 +213,10 @@ export class CompilerStyleSheet {
     options?: { important?: boolean },
   ): HybridStyleRule {
     const rule: HybridStyleRule = {
-      s: createSpecificity(),
+      s:
+        selector.type === "className"
+          ? [...selector.specificity]
+          : createSpecificity(),
       ...partialRule,
     };
 
@@ -229,6 +236,16 @@ export class CompilerStyleSheet {
       if (selector.containerQuery) {
         rule.cq = [...(rule.cq ?? [])];
         rule.cq.push(...selector.containerQuery);
+      }
+      if (selector.pseudoClassesQuery) {
+        rule.pq = { ...rule.pq, ...selector.pseudoClassesQuery };
+      }
+      if (selector.attributeQuery) {
+        // Generated rules target component props (AttributeQuery.a); data-*
+        // attribute handling is not differentiated yet
+        rule.aq = { a: [...selector.attributeQuery] };
+        // Stable id so the runtime can dedupe identical queries across rules
+        rule.id = `aq-${attributeQueryId(selector.attributeQuery)}`;
       }
     }
 
@@ -252,4 +269,17 @@ export class CompilerStyleSheet {
     // Placeholder for warning generation logic
     return [];
   }
+}
+
+/**
+ * Deterministic, space-free id for an attribute query so the runtime can
+ * dedupe identical queries across rules and class names
+ */
+function attributeQueryId(query: AttributeQueryRule[]): string {
+  const json = JSON.stringify(query);
+  let hash = 5381;
+  for (let i = 0; i < json.length; i++) {
+    hash = ((hash << 5) + hash + json.charCodeAt(i)) >>> 0;
+  }
+  return hash.toString(36);
 }

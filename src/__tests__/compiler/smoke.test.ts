@@ -13,7 +13,7 @@ test("nested classes", () => {
           d: {
             color: "#f00",
           },
-          s: [0, 0, 0, 0, 0],
+          s: [0, 0, 0, 2, 0],
           v: {
             "__rn-css-color": "#f00",
           },

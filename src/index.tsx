@@ -3,7 +3,7 @@ import { NitroModules } from "react-native-nitro-modules";
 import type { CssNitro } from "./CssNitro.nitro";
 import type { Math } from "./specs/Math.nitro";
 
-export { StyleRegistry } from "./specs/StyleRegistry";
+export { getStyleRegistry, setStyleRegistry } from "./specs/StyleRegistry";
 export type * from "./specs/StyleRegistry";
 
 export { useStyledProps as useStyled } from "./native/useStyled";

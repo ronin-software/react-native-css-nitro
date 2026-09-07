@@ -1,8 +1,9 @@
 import { useCallback } from "react";
 
-import { StyleRegistry } from "../specs/StyleRegistry";
+import { getStyleRegistry } from "../specs/StyleRegistry";
 
 export function useDualRefs(componentId: string, existingRef?: any): any {
+  const StyleRegistry = getStyleRegistry();
   return useCallback(
     (handle: { __nativeTag?: number } | null) => {
       if (existingRef) {

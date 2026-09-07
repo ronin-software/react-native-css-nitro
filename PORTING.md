@@ -61,11 +61,24 @@ tests). Verification is layered:
   `ShadowTreeUpdateManager` pulls those in, and it is excluded from the
   doctest binary (exercised on-device instead).
 
+## Jest layer status
+
+The `StyleRegistry` seam exists (`getStyleRegistry`/`setStyleRegistry`) and
+`src/jest` provides upstream-compatible `registerCSS`/`testID` helpers backed
+by a JS reference registry (`src/jest/reference-registry.ts`) mirroring
+cpp/StyledComputedFactory.cpp. Ported upstream test files so far:
+specificity, pseudo-classes, style-updating (16 passing, 4 skipped pending
+the styled() HOC). Bugs found by porting:
+- compiler dropped specificity/pseudo/attribute data from parsed selectors
+  (`createRule` never applied them)
+- compiler routed important declarations through the normal path
+- compiler dropped zero-arg functions (fontScale(), pixelScale())
+- pseudo-class handlers recursed into themselves (captured the wrapper as the
+  "original" callback)
+
 ## Next steps
 
-1. Add a `StyleRegistry` seam (lazy creation + test override) and a jest
-   harness (`registerCSS`) so upstream's native test files can be ported
-   wholesale as the JS-glue layer spec.
-2. Port upstream's native test files; sort into: green today, fixable via C++
-   core, blocked on checklist items (CSS functions, filters, safe-area, …).
-3. Implement gaps test-first, with matching doctests at the registry boundary.
+1. Port the remaining ~24 upstream native test files; sort into green /
+   fixable / blocked on checklist items (filters, safe-area, …)
+2. Port the styled() HOC to un-skip the remaining specificity tests
+3. On-device e2e (Maestro) for shadow-tree writes and transitions
