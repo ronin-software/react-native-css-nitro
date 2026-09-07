@@ -7,14 +7,14 @@ import { createElement, useContext, useMemo, type ComponentType, type ReactNode 
 
 import { VariableValuesContext } from "./native/contexts";
 import { useStyledProps } from "./native/useStyled";
-import { getStyleRegistry } from "./specs/StyleRegistry";
+import { mergeStylesWithInline } from "./utils";
 
 /** Marks an object produced by vars() as inline variable declarations */
 export const VAR_SYMBOL = Symbol.for("react-native-css.vars");
 
-export type StyledConfiguration = Record<
+export type StyledConfiguration<C = unknown> = Record<
   string,
-  string | boolean | string[] | Record<string, string>
+  string | boolean | string[] | Record<string, string> | C
 >;
 
 export interface StyledOptions {
@@ -55,14 +55,17 @@ export function vars(variables: Record<string, any>): Record<string, any> {
   return { [VAR_SYMBOL]: "inline", ...variables };
 }
 
-function isVarsMarker(value: unknown): value is Record<string, any> {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    VAR_SYMBOL in value
-  );
-}
+/** Props of a styled()-wrapped component: base props plus className keys */
+export type StyledProps<P, M extends StyledConfiguration> = P & {
+  [K in keyof M as K extends string
+    ? M[K] extends undefined | false
+      ? never
+      : M[K] extends true | string | object
+        ? K
+        : never
+    : never]?: string;
+};
+
 
 /**
  * Upstream pass-through: no registry, no React state — the className is
@@ -130,70 +133,41 @@ export function useStyledComponent(
   props: Record<string, any>,
   configs: Config[],
 ) {
-  const primary = configs[0];
-  const classNameSource = primary?.source ?? "className";
-  const className = props[classNameSource];
-
-  // Stable per element instance
+  const active = configs.filter((c) => c.target !== false);
   const componentId = useMemo(
-    () => `styled-${Math.random().toString(36).slice(2)}`,
+    () =>
+      active.map(() => `styled-${Math.random().toString(36).slice(2)}`),
+    // configs are static per call site
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
-  const styled = useStyledProps(componentId, className, props);
 
-  // Register vars() markers (inline variables) against this component.
-  // The registry's observable triggers the C++ computed re-evaluation, which
-  // re-renders the component with the resolved values.
-  const styleProp = props.style;
-  const varsKey = isVarsMarker(styleProp) ? JSON.stringify(styleProp) : "";
+  // One styled resolution per active config (multi-target support:
+  // FlatList's className/contentContainerClassName/etc.)
+  const styledResults = active.map((config, i) => {
+    const source = config.source;
+    const className = source === undefined ? undefined : props[source];
+    const styled = useStyledProps(componentId[i]!, className, props);
+    return { config, styled };
+  });
 
-  useMemo(() => {
-    if (!varsKey) {
-      return;
-    }
-    const marker = JSON.parse(varsKey) as Record<string, any>;
-    const variables: Record<string, any> = {};
-    for (const [key, value] of Object.entries(marker)) {
-      if (key !== String(VAR_SYMBOL)) continue;
-      variables[key] = value;
-    }
-    getStyleRegistry().updateComponentInlineVariables(componentId, variables);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [varsKey]);
+  // Register vars() markers against the primary component. The registry's
+  // observable triggers the C++ computed re-evaluation, which re-renders the
+  // component with the resolved values.
 
-  // Build the output props following upstream's merge order:
-  // styled props → user props → important styled props
-  const out: Record<string, any> = {
-    ...props,
-  };
-  delete out[classNameSource];
+  // Build the output props
+  const out: Record<string, any> = { ...props };
 
-  for (const config of configs) {
-    if (config.source === classNameSource || config.target === false) {
+  for (const { config, styled } of styledResults) {
+    const target = Array.isArray(config.target)
+      ? (config.target[config.target.length - 1] as string)
+      : (config.target as string);
+    if (!target) {
       continue;
     }
-    // Additional targets (e.g. contentContainerStyle) share the primary
-    // resolution for now — multi-config resolution is not implemented yet
-  }
 
-  const hasStyled = styled.style || styled.importantStyle;
-  out.style =
-    hasStyled || props.style
-      ? [
-          styled.style,
-          Array.isArray(props.style) ? props.style : [props.style],
-          styled.importantStyle,
-        ].flat()
-      : props.style;
-
-  Object.assign(out, styled.importantProps);
-  if (styled.props) {
-    for (const [key, value] of Object.entries(styled.props)) {
-      if (!(key in props)) {
-        out[key] = value;
-      }
-    }
+    out[target] = mergeStylesWithInline(styled.cleanStyle, styled);
   }
 
   return createElement(type, out);

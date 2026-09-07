@@ -13,7 +13,7 @@ import { render } from "@testing-library/react-native";
 import { Text } from "../../components/Text";
 import { View } from "../../components/View";
 import { registerCSS, testID } from "../../jest";
-import { VAR_SYMBOL } from "react-native-css/native/reactivity";
+import { VAR_SYMBOL } from "../../native/reactivity";
 
 describe("rightIsInline - CSS Variable Stripping", () => {
   test("inline style with CSS variable object should be filtered out", () => {
@@ -747,7 +747,7 @@ describe("rightIsInline - Red Team Edge Cases", () => {
       ? component.props.style.flat()
       : [component.props.style];
     const hasOpacity = flatStyle.some(
-      (s) => s && typeof s === "object" && "opacity" in s,
+      (s: unknown): boolean => s !== null && typeof s === "object" && "opacity" in s,
     );
     expect(hasOpacity).toBe(true);
   });

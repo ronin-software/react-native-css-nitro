@@ -19,21 +19,34 @@ const VARS_SYMBOL = Symbol.for("react-native-css.vars");
 
 /**
  * Extract classNames and inline variables from pass-through/vars markers
- * embedded in a style prop (array or object).
+ * embedded in a style prop, and produce a marker-free copy of the style.
+ * Marker objects in property-value positions are dropped (upstream
+ * rightIsInline semantics: only literal values pass through).
  */
 function extractMarkers(
   style: unknown,
   classNames: string[],
   variables: Record<string, any>,
-): void {
-  if (!style || typeof style !== "object") {
-    return;
-  }
+  clean?: Record<string, any>,
+): Record<string, any> | undefined {
   if (Array.isArray(style)) {
+    const cleanedArray: any[] = [];
     for (const item of style) {
-      extractMarkers(item, classNames, variables);
+      if (isVarsMarker(item)) {
+        collectVars(item, variables);
+        continue;
+      }
+      const cleanedChild = extractMarkers(item, classNames, variables);
+      cleanedArray.push(cleanedChild);
     }
-    return;
+    if (clean) {
+      Object.assign(clean, cleanedArray);
+      return undefined;
+    }
+    return cleanedArray as any;
+  }
+  if (!style || typeof style !== "object") {
+    return style as any;
   }
   const record = style as Record<PropertyKey, unknown>;
   const inline = record[INLINE_RULE_SYMBOL];
@@ -41,10 +54,59 @@ function extractMarkers(
     classNames.push(...inline.split(/\s+/).filter(Boolean));
   }
   if (VARS_SYMBOL in record) {
-    for (const [key, value] of Object.entries(record)) {
-      if (key !== String(VARS_SYMBOL)) {
-        variables[key] = value;
+    collectVars(record as Record<string, any>, variables);
+    return undefined; // marker objects are dropped from styles
+  }
+
+  const cleaned: Record<string, any> = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (isVarsMarker(value)) {
+      collectVars(value as Record<string, any>, variables);
+      continue;
+    }
+    if (Array.isArray(value)) {
+      const cleanedArray: any[] = [];
+      for (const item of value) {
+        if (isVarsMarker(item)) {
+          collectVars(item as Record<string, any>, variables);
+          continue;
+        }
+        const cleanedChild = extractMarkers(item, classNames, variables);
+        cleanedArray.push(cleanedChild);
       }
+      cleaned[key] = cleanedArray;
+      continue;
+    }
+    if (value !== null && typeof value === "object") {
+      cleaned[key] = extractMarkers(value, classNames, variables);
+      continue;
+    }
+    cleaned[key] = value;
+  }
+  if (clean) {
+    Object.assign(clean, cleaned);
+    return undefined;
+  }
+  return cleaned;
+}
+
+function isVarsMarker(value: unknown): boolean {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    VARS_SYMBOL in value
+  );
+}
+
+function collectVars(
+  marker: Record<string, any>,
+  variables: Record<string, any>,
+): void {
+  for (const [key, value] of Object.entries(marker)) {
+    if (key !== String(VARS_SYMBOL)) {
+      const bare = key.startsWith("--") ? key.slice(2) : key;
+      variables[bare] = value;
     }
   }
 }
@@ -80,7 +142,11 @@ export function useStyledProps(
   const inheritedVars = use(VariableValuesContext);
   const extraClassNames: string[] = [];
   const inlineVariables: Record<string, any> = {};
-  extractMarkers(originalProps.style, extraClassNames, inlineVariables);
+  const cleanStyle = extractMarkers(
+    originalProps.style,
+    extraClassNames,
+    inlineVariables,
+  );
   // Inherited provider variables apply unless the component sets its own
   if (inheritedVars) {
     for (const [key, value] of Object.entries(inheritedVars)) {
@@ -96,13 +162,10 @@ export function useStyledProps(
       : className || extraClassNames.join(" ") || undefined;
 
   const inlineVarsKey = JSON.stringify(inlineVariables);
-  useMemo(() => {
-    if (Object.keys(inlineVariables).length === 0) {
-      return;
-    }
+  useEffect(() => {
     StyleRegistry.updateComponentInlineVariables(componentId, inlineVariables);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inlineVarsKey]);
+  }, [componentId, inlineVarsKey]);
 
   const declarations = effectiveClassName
     ? StyleRegistry.getDeclarations(
@@ -193,6 +256,7 @@ export function useStyledProps(
     importantProps: p,
     style: componentData.style,
     importantStyle: componentData.importantStyle,
+    cleanStyle,
     variableScope,
     containerScope,
   };

@@ -1,5 +1,5 @@
 import { useId, type ComponentPropsWithRef } from "react";
-import { StyleSheet, Text as RNText } from "react-native";
+import { Text as RNText } from "react-native";
 
 import { createAnimatedComponent } from "react-native-reanimated";
 
@@ -7,7 +7,11 @@ import { useElement } from "../../native/useElement";
 import { useDualRefs } from "../../native/useRef";
 import { useStyledProps } from "../../native/useStyled";
 import { getStyleRegistry } from "../../specs/StyleRegistry";
-import { copyComponentProperties, getDeepKeys } from "../../utils";
+import {
+  copyComponentProperties,
+  getDeepKeys,
+  mergeStylesWithInline,
+} from "../../utils";
 
 const AnimatedText = createAnimatedComponent(RNText);
 
@@ -34,10 +38,7 @@ export const Text = copyComponentProperties(
       ref,
       // Flattened so inline styles beat className and !important beats
       // inline — matching upstream's resolved-style contract
-      style:
-        styled.style || styled.importantStyle
-          ? StyleSheet.flatten([styled.style, p.style, styled.importantStyle])
-          : p.style,
+      style: mergeStylesWithInline(styled.cleanStyle, styled),
     });
   },
 );

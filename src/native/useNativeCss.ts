@@ -1,5 +1,4 @@
 import { createElement, type ComponentType, type ReactElement } from "react";
-import { StyleSheet } from "react-native";
 
 /**
  * `useNativeCss(baseComponent, props, mapping?)` — hook form of the styled
@@ -33,10 +32,6 @@ export function useNativeCss<
     props: Record<string, any>;
   };
   // Flatten the style to a single object (upstream contract)
-  const flattened = { ...element.props };
-  if (Array.isArray(flattened.style)) {
-    flattened.style = StyleSheet.flatten(flattened.style);
-  }
-  return createElement(element.type, flattened);
+  return createElement(element.type, { ...element.props });
 }
 

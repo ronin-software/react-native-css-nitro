@@ -124,6 +124,16 @@ can be verified with the same Maestro/agent-device harness.
    so both fail on device too
 4. On-device e2e (Maestro) for shadow-tree writes and transitions
 
+## In progress: className-with-style + rightIsInline (68 tests)
+
+The NativeWind adapter surface (styled/useCssElement/useNativeCss/vars/
+VariableContextProvider) is implemented. The two big suites run but 37 tests
+fail on style-merge semantics: the exact contract for className-layer vs
+inline-layer preservation (flat merge vs array layering on conflicts,
+multi-target FlatList/ScrollView mappings, consumed className sources) needs
+to be derived from the remaining failures. 150 of 205 tests in those suites
+already pass.
+
 ## Score (vs upstream's 220 native tests)
 
 - 93 passing, 21 skipped with documented blockers, of 115 ported tests

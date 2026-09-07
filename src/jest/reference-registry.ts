@@ -323,8 +323,13 @@ export class ReferenceRegistry {
     componentId: string,
     variables: Record<string, AnyValue>,
   ): void {
-    this.componentVars.set(componentId, { ...variables });
-    this.notifyAll();
+    const next = { ...variables };
+    const prev = this.componentVars.get(componentId);
+    // Only notify on real changes — the caller's effect runs every render
+    if (JSON.stringify(prev) !== JSON.stringify(next)) {
+      this.componentVars.set(componentId, next);
+      this.notifyAll();
+    }
   }
 
   updateComponentInlineStyleKeys(_componentId: string, _keys: string[]): void {
