@@ -15,6 +15,7 @@ import type {
   StyleSheet as HybridStyleSheet,
   SpecificityArray,
 } from "../specs/StyleRegistry";
+import type { AnyMap, ValueType } from "react-native-nitro-modules";
 import type { CompilerOptions } from "./compiler.types";
 import { getContainerQuery } from "./container-query";
 import { DeclarationBuilder, parseDeclaration } from "./declarations";
@@ -33,6 +34,8 @@ const DEFAULT_MAPPING = {
   "background-image": "experimental_backgroundImage",
 };
 
+type VariableItem = { v: ValueType; m?: AnyMap };
+
 export class CompilerStyleSheet {
   private readonly selectorStack: NormalizedSelector[][] = [];
   private readonly mediaStack: HybridMediaQuery[][] = [];
@@ -42,6 +45,12 @@ export class CompilerStyleSheet {
 
   private readonly selectorParser: SelectorParser;
   private readonly ruleSets = new Map<string, HybridStyleRule[]>();
+  /** Variable items: [{v: value, m?: mediaQuery}] consumed by the runtime */
+  private readonly variableSets: [
+    Record<string, VariableItem[]>,
+    Record<string, VariableItem[]>,
+  ] = [{}, {}];
+  private ruleOrder = 0;
   private keyframes: HybridAnimation = {};
 
   constructor(public options: CompilerOptions) {
@@ -49,6 +58,7 @@ export class CompilerStyleSheet {
   }
 
   pushSelectors(selectors: SelectorList): boolean {
+    this.ruleOrder++;
     this.selectorStack.push(this.selectorParser.parse(selectors));
     return true;
   }
@@ -187,13 +197,19 @@ export class CompilerStyleSheet {
   }
 
   getHybridStyleSheet(): HybridStyleSheet {
-    if (!this.ruleSets.size) {
-      return {};
-    }
+    const stylesheet: HybridStyleSheet = {};
 
-    return {
-      s: Object.fromEntries(this.ruleSets.entries()),
-    };
+    if (this.ruleSets.size) {
+      stylesheet.s = Object.fromEntries(this.ruleSets.entries());
+    }
+    const [vr, vu] = this.variableSets;
+    if (Object.keys(vr).length > 0) {
+      stylesheet.vr = vr as NonNullable<HybridStyleSheet["vr"]>;
+    }
+    if (Object.keys(vu).length > 0) {
+      stylesheet.vu = vu as NonNullable<HybridStyleSheet["vu"]>;
+    }
+    return stylesheet;
   }
 
   private appendRule(selector: NormalizedSelector, rule: HybridStyleRule) {
@@ -204,7 +220,43 @@ export class CompilerStyleSheet {
       } else {
         this.ruleSets.set(selector.className, [rule]);
       }
+      return;
     }
+
+    // :root / * variable declarations → vr / vu.
+    // Values are [{v, m?}] items so media conditions ride along; the runtime
+    // picks the first item whose condition passes (dark subtype forces a
+    // prefers-color-scheme condition).
+    const vars = rule.v;
+    if (!vars) {
+      return;
+    }
+    const media = this.currentMediaConditions(selector);
+    const target = this.variableSets[selector.type === "rootVariables" ? 0 : 1];
+    for (const [name, value] of Object.entries(vars)) {
+      const list = target[name] ?? [];
+      list.push(media ? { v: value, m: media } : { v: value });
+      target[name] = list;
+    }
+  }
+
+  /**
+   * Media conditions for the current stack, plus the forced color-scheme
+   * condition for dark subtype variable selectors
+   */
+  private currentMediaConditions(
+    selector:
+      | { type: "className" }
+      | { type: "rootVariables" | "universalVariables"; subtype: "light" | "dark" },
+  ): AnyMap | undefined {
+    const conditions: AnyMap[] = this.mediaStack.flat();
+    if (selector.type !== "className" && selector.subtype === "dark") {
+      conditions.push({ "prefers-color-scheme": ["=", "dark"] });
+    }
+    if (conditions.length === 0) {
+      return undefined;
+    }
+    return conditions.length === 1 ? conditions[0] : { and: conditions };
   }
 
   private createRule(
@@ -220,6 +272,10 @@ export class CompilerStyleSheet {
       ...partialRule,
     };
 
+    // Source order breaks specificity ties — later rules win (upstream does
+    // the same via StylesheetBuilder.shared.ruleOrder)
+    rule.s[Specificity.order] = this.ruleOrder;
+
     if (rule.d) {
       for (const [oldKey, newKey] of Object.entries(this.currentMapping)) {
         if (oldKey in rule.d) {
@@ -230,6 +286,11 @@ export class CompilerStyleSheet {
           delete rule.d[oldKey];
         }
       }
+    }
+
+    // Container queries from @container at-rules
+    if (this.containerStack.length > 0) {
+      rule.cq = [...(rule.cq ?? []), ...this.containerStack];
     }
 
     if (selector.type === "className") {

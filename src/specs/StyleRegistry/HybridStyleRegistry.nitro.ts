@@ -56,6 +56,8 @@ export interface StyleRegistry
     scale: number,
     fontScale: number,
   ): void;
+  setPlatform(platform: string): void;
+  setColorScheme(scheme: string): void;
   updateComponentInlineStyleKeys(
     componentId: string,
     inlineStyleKeys: string[],

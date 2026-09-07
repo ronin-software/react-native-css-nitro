@@ -128,6 +128,36 @@ namespace margelo::nitro::cssnitro {
                 continue;
             }
 
+            // Nested logic conditions: {"and": [...]}, {"or": [...]}, {"not": {...}}
+            if (key == "and" || key == "or" || key == "not") {
+                if (mediaMap.isArray(key)) {
+                    std::vector<bool> sub;
+                    for (const auto &item: mediaMap.getArray(key)) {
+                        if (std::holds_alternative<AnyObject>(item)) {
+                            auto subMap = AnyMap::make();
+                            for (const auto &kv: std::get<AnyObject>(item)) {
+                                subMap->setAny(kv.first, kv.second);
+                            }
+                            sub.push_back(testMediaMap(*subMap, get));
+                        }
+                    }
+                    bool subResult = key == "or"
+                                         ? std::any_of(sub.begin(), sub.end(), [](bool b) { return b; })
+                                         : std::all_of(sub.begin(), sub.end(), [](bool b) { return b; });
+                    results.push_back(key == "not" ? !subResult : subResult);
+                } else if (mediaMap.contains(key)) {
+                    // "not" wraps a single condition object
+                    const AnyObject &item = mediaMap.getObject(key);
+                    auto subMap = AnyMap::make(item.size());
+                    for (const auto &kv: item) {
+                        subMap->setAny(kv.first, kv.second);
+                    }
+                    bool subResult = testMediaMap(*subMap, get);
+                    results.push_back(key == "not" ? !subResult : subResult);
+                }
+                continue;
+            }
+
             // Value should be an array with [operator, expectedValue]
             if (!mediaMap.isArray(key)) {
                 continue;
@@ -185,6 +215,24 @@ namespace margelo::nitro::cssnitro {
 
     bool Rules::testMediaQuery(const std::string &key, const std::string &op, const AnyValue &value,
                                reactnativecss::Effect::GetProxy &get) {
+        // String features
+        if (op == "=") {
+            if (key == "platform") {
+                if (std::holds_alternative<std::string>(value)) {
+                    return get(reactnativecss::env::platform()) ==
+                           std::get<std::string>(value);
+                }
+                return false;
+            }
+            if (key == "prefers-color-scheme") {
+                if (std::holds_alternative<std::string>(value)) {
+                    return get(reactnativecss::env::colorScheme()) ==
+                           std::get<std::string>(value);
+                }
+                return false;
+            }
+        }
+
         if (op == "=") {
             if (key == "min-width") {
                 if (std::holds_alternative<double>(value)) {
@@ -243,22 +291,23 @@ namespace margelo::nitro::cssnitro {
         } else if (key == "height") {
             left = get(reactnativecss::env::windowHeight());
         } else if (key == "resolution") {
-            // TODO: Need to get PixelRatio - for now return 1.0
-            left = 1.0; // PixelRatio.get()
+            // dppx == PixelRatio.get() == window scale
+            left = get(reactnativecss::env::windowScale());
         } else {
             return false;
         }
 
-        // Apply operator
-        if (op == "=") {
+        // Apply operator — the compiler emits gt/gte/lt/lte
+        // (see mapMediaQueryOperator); accept the symbol forms too
+        if (op == "=" || op == "eq") {
             return left == right;
-        } else if (op == ">") {
+        } else if (op == ">" || op == "gt") {
             return left > right;
-        } else if (op == ">=") {
+        } else if (op == ">=" || op == "gte") {
             return left >= right;
-        } else if (op == "<") {
+        } else if (op == "<" || op == "lt") {
             return left < right;
-        } else if (op == "<=") {
+        } else if (op == "<=" || op == "lte") {
             return left <= right;
         }
 
@@ -403,6 +452,24 @@ namespace margelo::nitro::cssnitro {
                                         const AnyValue &value,
                                         reactnativecss::Effect::GetProxy &get,
                                         const std::string &containerScope) {
+        // String features
+        if (op == "=") {
+            if (key == "platform") {
+                if (std::holds_alternative<std::string>(value)) {
+                    return get(reactnativecss::env::platform()) ==
+                           std::get<std::string>(value);
+                }
+                return false;
+            }
+            if (key == "prefers-color-scheme") {
+                if (std::holds_alternative<std::string>(value)) {
+                    return get(reactnativecss::env::colorScheme()) ==
+                           std::get<std::string>(value);
+                }
+                return false;
+            }
+        }
+
         if (op == "=") {
             if (key == "min-width") {
                 if (std::holds_alternative<double>(value)) {
@@ -476,16 +543,17 @@ namespace margelo::nitro::cssnitro {
 
         double left = leftOpt.value();
 
-        // Apply operator
-        if (op == "=") {
+        // Apply operator — the compiler emits gt/gte/lt/lte
+        // (see mapMediaQueryOperator); accept the symbol forms too
+        if (op == "=" || op == "eq") {
             return left == right;
-        } else if (op == ">") {
+        } else if (op == ">" || op == "gt") {
             return left > right;
-        } else if (op == ">=") {
+        } else if (op == ">=" || op == "gte") {
             return left >= right;
-        } else if (op == "<") {
+        } else if (op == "<" || op == "lt") {
             return left < right;
-        } else if (op == "<=") {
+        } else if (op == "<=" || op == "lte") {
             return left <= right;
         }
 

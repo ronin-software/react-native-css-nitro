@@ -280,6 +280,14 @@ namespace margelo::nitro::cssnitro {
         reactnativecss::env::setWindowDimensions(width, height, scale, fontScale);
     }
 
+    void HybridStyleRegistry::setPlatform(const std::string &platform) {
+        reactnativecss::env::setPlatform(platform);
+    }
+
+    void HybridStyleRegistry::setColorScheme(const std::string &scheme) {
+        reactnativecss::env::setColorScheme(scheme);
+    }
+
     jsi::Value
     HybridStyleRegistry::linkComponent(jsi::Runtime &runtime, const jsi::Value &thisValue,
                                        const jsi::Value *args, size_t count) {

@@ -71,6 +71,10 @@ namespace margelo::nitro::cssnitro {
         void
         setWindowDimensions(double width, double height, double scale, double fontScale) override;
 
+        void setPlatform(const std::string &platform) override;
+
+        void setColorScheme(const std::string &scheme) override;
+
         void
         setKeyframes(const std::string &name, const std::shared_ptr<AnyMap> &keyframes) override;
 

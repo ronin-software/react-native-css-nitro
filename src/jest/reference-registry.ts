@@ -50,6 +50,14 @@ export class ReferenceRegistry {
   /** Harness hook: Appearance color scheme */
   setColorScheme(scheme: "light" | "dark" | null): void {
     this.colorScheme = scheme;
+    this.notifyAll();
+  }
+
+  /** Harness hook: partial window-dimension update */
+  setDimensions(partial: Partial<{ width: number; height: number; scale: number; fontScale: number }>): void {
+    this.window = { ...this.window, ...partial };
+    // The C++ registry re-resolves via env observables; fan out manually
+    this.notifyAll();
   }
 
   /** Reset all state (jest beforeEach) */
@@ -232,6 +240,9 @@ export class ReferenceRegistry {
       }
     }
 
+    this.aggregateTransforms(style);
+    this.aggregateTransforms(importantStyle);
+
     const styled: Styled = {};
     if (Object.keys(style).length > 0) {
       styled.style = style;
@@ -341,6 +352,24 @@ export class ReferenceRegistry {
       if (key === "$$op") {
         continue;
       }
+
+      // Nested logic conditions: {and: [...]}, {or: [...]}, {not: {...}}
+      if (key === "and" || key === "or" || key === "not") {
+        const nested = mq[key];
+        if (Array.isArray(nested)) {
+          const sub = nested.map((c) =>
+            this.testMedia(c as Record<string, AnyValue>),
+          );
+          const subResult =
+            key === "or" ? sub.some(Boolean) : sub.every(Boolean);
+          results.push(key === "not" ? !subResult : subResult);
+        } else if (nested !== null && typeof nested === "object") {
+          const subResult = this.testMedia(nested as Record<string, AnyValue>);
+          results.push(key === "not" ? !subResult : subResult);
+        }
+        continue;
+      }
+
       const condition = mq[key];
       if (!Array.isArray(condition) || condition.length < 2) {
         continue;
@@ -380,6 +409,9 @@ export class ReferenceRegistry {
       actual = this.window.width;
     } else if (key === "min-height" || key === "max-height" || key === "height") {
       actual = this.window.height;
+    } else if (key === "resolution" || key === "min-resolution" || key === "max-resolution") {
+      // dppx == PixelRatio.get() == window scale
+      actual = this.window.scale;
     } else {
       return false;
     }
@@ -388,12 +420,21 @@ export class ReferenceRegistry {
       return false;
     }
     switch (comparison) {
+      case "eq":
       case "=":
         return key.startsWith("min")
           ? actual >= expected
           : key.startsWith("max")
             ? actual <= expected
             : actual === expected;
+      case "gt":
+        return actual > expected;
+      case "gte":
+        return actual >= expected;
+      case "lt":
+        return actual < expected;
+      case "lte":
+        return actual <= expected;
       default:
         return false;
     }
@@ -413,6 +454,36 @@ export class ReferenceRegistry {
         continue;
       }
       target[key] = resolved;
+    }
+  }
+
+  /** Mirror of StyleResolver::applyStyleMapping's transform aggregation */
+  private aggregateTransforms(style: Record<string, AnyValue>): void {
+    const transformProps = new Set([
+      "translateX", "translateY", "translateZ", "rotate", "rotateX",
+      "rotateY", "rotateZ", "scaleX", "scaleY", "scaleZ", "skewX", "skewY",
+      "perspective",
+    ]);
+    const transform: Record<string, AnyValue>[] = [];
+    for (const key of Object.keys(style)) {
+      if (!transformProps.has(key)) {
+        continue;
+      }
+      const value = style[key];
+      if (value === undefined) {
+        continue;
+      }
+      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+      delete style[key];
+      const existing = transform.find((t) => key in t);
+      if (existing) {
+        existing[key] = value;
+      } else {
+        transform.push({ [key]: value });
+      }
+    }
+    if (transform.length > 0) {
+      style.transform = transform;
     }
   }
 
@@ -482,11 +553,27 @@ export class ReferenceRegistry {
   }
 
   private getVariable(scope: string, name: string): AnyValue | undefined {
-    return (
+    const raw =
       this.scopedVariables.get(scope)?.get(name) ??
       this.universalVariables.get(name) ??
-      this.rootVariables.get(name)
-    );
+      this.rootVariables.get(name);
+    if (raw === undefined) {
+      return undefined;
+    }
+    // Variables may be [{v: value, m?: media}] item lists — the runtime picks
+    // the first item whose media condition passes
+    if (Array.isArray(raw) && raw.every((item) => item !== null && typeof item === "object" && "v" in item)) {
+      for (const item of raw as { v: AnyValue; m?: Record<string, AnyValue> }[]) {
+        if (item.m === undefined || this.testMedia(item.m)) {
+          // declaration values compile as single-element lists — unwrap
+          return Array.isArray(item.v) && item.v.length === 1
+            ? item.v[0]
+            : item.v;
+        }
+      }
+      return undefined;
+    }
+    return raw;
   }
 
   private setVariable(scope: string, name: string, value: AnyValue): void {

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 #include "Observable.hpp"
 
 namespace reactnativecss {
@@ -16,8 +18,16 @@ namespace reactnativecss {
 
         reactnativecss::Observable<double> &windowFontScale();
 
+        reactnativecss::Observable<std::string> &platform();
+
+        reactnativecss::Observable<std::string> &colorScheme();
+
 // Convenience API to update all four metrics in one shot.
         void setWindowDimensions(double width, double height, double scale, double fontScale);
+
+        void setPlatform(const std::string &platform);
+
+        void setColorScheme(const std::string &colorScheme);
 
     } // namespace env
 } // namespace reactnativecss

@@ -78,7 +78,19 @@ the styled() HOC). Bugs found by porting:
 
 ## Next steps
 
-1. Port the remaining ~24 upstream native test files; sort into green /
-   fixable / blocked on checklist items (filters, safe-area, …)
+1. Port remaining upstream suites: animations, transitions, calc, box-shadow,
+   className-with-style, rightIsInline, filters (blocked on features), the
+   .ios-only files
 2. Port the styled() HOC to un-skip the remaining specificity tests
-3. On-device e2e (Maestro) for shadow-tree writes and transitions
+3. Wire ContainerContext::setScope — named containers AND group selectors
+   compile to container queries but the scope hierarchy is never populated,
+   so both fail on device too
+4. On-device e2e (Maestro) for shadow-tree writes and transitions
+
+## Score (vs upstream's 220 native tests)
+
+- Passing in jest: 50 (of 61 runnable; 10 skipped with documented blockers,
+  5 suites parked in src/__tests__/blocked/ pending unported APIs)
+- Remaining checklist feature work surfaced by tests: container/group scope
+  hierarchy, transform functions in var() values, safe-area env units,
+  filters, styled() HOC, useNativeCss hook

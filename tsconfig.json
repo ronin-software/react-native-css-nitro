@@ -30,6 +30,7 @@
     "verbatimModuleSyntax": true
   },
   "exclude": [
+    "src/__tests__/blocked",
     "cpp",
     "**/Pods/**"
   ]

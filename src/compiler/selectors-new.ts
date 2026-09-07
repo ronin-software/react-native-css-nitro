@@ -139,6 +139,13 @@ export class SelectorParser {
       case "pseudo-element":
         return "invalid";
 
+      case "type":
+        // The selector prefix (e.g. "html") is allowed and ignored
+        if (component.name === this.options.selectorPrefix) {
+          return "valid";
+        }
+        return "invalid";
+
       case "nesting":
         return "valid";
 

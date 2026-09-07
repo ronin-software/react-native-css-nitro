@@ -137,6 +137,9 @@
     ],
     "transformIgnorePatterns": [
       "node_modules/(?!(react-native|@react-native|react-native-reanimated|react-native-worklets)/)"
+    ],
+    "testPathIgnorePatterns": [
+      "<rootDir>/src/__tests__/blocked/"
     ]
   },
   "commitlint": {

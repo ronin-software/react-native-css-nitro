@@ -8,7 +8,9 @@
  * semantics in jest; the C++ registry itself is verified by
  * `yarn test:native` and on-device e2e.
  */
-import { compile } from "../compiler";
+import { Dimensions } from "react-native";
+
+import { compile, type CompilerOptions } from "../compiler";
 import { ReferenceRegistry } from "./reference-registry";
 import { setStyleRegistry } from "../specs/StyleRegistry";
 
@@ -18,11 +20,21 @@ export const registry = new ReferenceRegistry();
 
 setStyleRegistry(registry as never);
 
+beforeEach(() => {
+  registry.reset();
+  const { width, height, scale, fontScale } = Dimensions.get("window");
+  registry.setWindowDimensions(width, height, scale, fontScale);
+  registry.setColorScheme(null);
+});
+
 /**
  * Compile CSS and inject the result into the test registry.
  */
-export function registerCSS(css: string): ReturnType<typeof compile> {
-  return injectCompiled(compile(css));
+export function registerCSS(
+  css: string,
+  options?: CompilerOptions,
+): ReturnType<typeof compile> {
+  return injectCompiled(compile(css, options));
 }
 
 /**

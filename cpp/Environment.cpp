@@ -23,6 +23,16 @@ namespace reactnativecss {
             return inst;
         }
 
+        static std::shared_ptr<reactnativecss::Observable<std::string>> &platformRef() {
+            static auto inst = reactnativecss::Observable<std::string>::create("");
+            return inst;
+        }
+
+        static std::shared_ptr<reactnativecss::Observable<std::string>> &colorSchemeRef() {
+            static auto inst = reactnativecss::Observable<std::string>::create("");
+            return inst;
+        }
+
         reactnativecss::Observable<double> &windowWidth() { return *widthRef(); }
 
         reactnativecss::Observable<double> &windowHeight() { return *heightRef(); }
@@ -31,11 +41,23 @@ namespace reactnativecss {
 
         reactnativecss::Observable<double> &windowFontScale() { return *fontScaleRef(); }
 
+        reactnativecss::Observable<std::string> &platform() { return *platformRef(); }
+
+        reactnativecss::Observable<std::string> &colorScheme() { return *colorSchemeRef(); }
+
         void setWindowDimensions(double width, double height, double scale, double fontScale) {
             widthRef()->set(width);
             heightRef()->set(height);
             scaleRef()->set(scale);
             fontScaleRef()->set(fontScale);
+        }
+
+        void setPlatform(const std::string &platform) {
+            platformRef()->set(platform);
+        }
+
+        void setColorScheme(const std::string &colorScheme) {
+            colorSchemeRef()->set(colorScheme);
         }
 
     } // namespace env

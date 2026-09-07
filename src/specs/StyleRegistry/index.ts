@@ -1,4 +1,4 @@
-import { Dimensions, processColor } from "react-native";
+import { Appearance, Dimensions, Platform, processColor } from "react-native";
 
 import type {
   HybridStyleRegistry,
@@ -43,6 +43,28 @@ function createNativeRegistry(): StyleRegistryApi {
   });
 
   return registry;
+}
+
+const PLATFORMS: Partial<Record<string, string>> = {
+  ios: "ios",
+  android: "android",
+  macos: "macos",
+  windows: "windows",
+  web: "web",
+};
+
+/**
+ * Push the device platform and color scheme into the registry so platform
+ * and prefers-color-scheme media queries resolve reactively.
+ */
+export function initializeEnvironment(registry: StyleRegistryApi): void {
+  const os = Platform.OS;
+  registry.setPlatform(PLATFORMS[os] ?? os);
+  const scheme = Appearance.getColorScheme();
+  registry.setColorScheme(scheme ?? "");
+  Appearance.addChangeListener((event) => {
+    registry.setColorScheme(event.colorScheme ?? "");
+  });
 }
 
 /**
