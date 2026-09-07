@@ -40,7 +40,8 @@ These are the features that are "done", in that they pass basic testing. More co
 - [x] Important props
 - [ ] Safe area units
 - [x] Em & `currentColor`
-- [ ] CSS functions (min, max, platform functions, etc)
+- [x] CSS math functions (calc, min, max, clamp, round, mod, rem, hypot, abs, sign)
+- [ ] CSS platform functions (platformSelect, hairlineWidth, etc)
 - [ ] Metro
 - [ ] Update compiler to new syntax (switch tuples to objects)
 - [ ] Shorthand runtime styles

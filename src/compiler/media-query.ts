@@ -163,7 +163,7 @@ export function parseMediaFeatureValue(
           if (args === undefined) {
             return;
           } else if (Array.isArray(args)) {
-            return ["fn", "calc", ...args];
+            return ["fn", "calc", args];
           } else {
             return ["fn", "calc", args];
           }

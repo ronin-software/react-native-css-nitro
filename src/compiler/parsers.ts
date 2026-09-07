@@ -59,11 +59,13 @@ import type {
   Token,
   TokenOrValue,
   UnresolvedColor,
+  Function as CssFunction,
 } from "lightningcss";
 import type { ValueType } from "react-native-nitro-modules";
 
 import type { DeclarationBuilder } from "./declarations";
 import { toRNProperty } from "./selectors-new";
+import { splitByDelimiter } from "./split-by-delimiter";
 
 ColorSpace.register(sRGB);
 ColorSpace.register(P3);
@@ -333,6 +335,17 @@ export function unparsed<
     }
     case "function": {
       switch (tokenOrValue.value.name) {
+        case "calc":
+        case "max":
+        case "min":
+        case "clamp":
+        case "hypot":
+        case "mod":
+        case "rem":
+        case "round":
+        case "sign":
+        case "abs":
+          return mathFunction(tokenOrValue.value, b);
         case "blur":
         case "brightness":
         case "contrast":
@@ -357,10 +370,6 @@ export function unparsed<
         case "saturate":
         case "scale":
         case "scaleX":
-        case "calc":
-        case "max":
-        case "min":
-        case "clamp":
         case "scaleY":
         case "sepia": {
           const args = parseTokens(tokenOrValue.value.arguments, b, allowAuto);
@@ -1238,6 +1247,11 @@ export function calcArguments(
           if (value === undefined) {
             return;
           }
+          // calc is identity — the caller (length/media-query) owns the
+          // ["fn", "calc", ...] wrapping; sign/abs keep their own wrapper
+          if (args.value.type === "calc") {
+            return value;
+          }
           return ["fn", args.value.type, value];
         }
         case "clamp":
@@ -1280,6 +1294,220 @@ export function calcArguments(
  */
 function nanToZero(value: number): number {
   return Number.isNaN(value) ? 0 : value;
+}
+
+// –
+// Math function tokens
+// –
+// lightningcss preserves calc()/min()/max()/… as raw function tokens when they
+// contain var()/env() (it cannot type them). This path builds the same
+// ["fn", name, ...] tuple grammar the typed path (calcArguments) emits, so the
+// C++ runtime resolves both identically.
+
+const mathPrecedence: Record<string, number> = { "+": 1, "-": 1, "*": 2, "/": 2 };
+
+function mathLeaf(
+  tokenOrValue: TokenOrValue,
+  b: DeclarationBuilder,
+): ValueType | undefined {
+  switch (tokenOrValue.type) {
+    case "var": {
+      const name = tokenOrValue.value.name.ident.slice(2);
+      const fallback = unparsed(tokenOrValue.value.fallback, b);
+      if (fallback !== undefined) {
+        // multi-value fallbacks can't ride in a single tuple slot
+        if (Array.isArray(fallback)) {
+          const single = fallback[0];
+          if (fallback.length !== 1 || single === undefined) {
+            return undefined;
+          }
+          return ["fn", "var", name, single];
+        }
+        return ["fn", "var", name, fallback];
+      }
+      return ["fn", "var", name];
+    }
+    case "token": {
+      const token = tokenOrValue.value;
+      switch (token.type) {
+        case "number":
+          return round(token.value);
+        case "percentage":
+          // token percentages are pre-divided by 100 (0.0–1.0)
+          return `${round(token.value * 100)}%`;
+        case "dimension":
+          return length(token, b);
+        default:
+          return undefined;
+      }
+    }
+    case "length":
+      return length(tokenOrValue.value, b);
+    case "function":
+      return mathFunction(tokenOrValue.value, b);
+    default:
+      return undefined;
+  }
+}
+
+function mathExpression(
+  tokens: TokenOrValue[],
+  b: DeclarationBuilder,
+): ValueType | undefined {
+  // Shunting-yard: operands are value tuples, operators are delim tokens
+  const output: (ValueType | string)[] = [];
+  const ops: string[] = [];
+  let expectOperand = true;
+
+  for (const tokenOrValue of tokens) {
+    if (tokenOrValue.type === "token") {
+      const token = tokenOrValue.value;
+      if (token.type === "white-space" || token.type === "comment") {
+        continue;
+      }
+      if (token.type === "delim" && token.value in mathPrecedence) {
+        const op = token.value;
+        if (expectOperand && (op === "-" || op === "+")) {
+          // unary sign: treat as 0 ± operand
+          output.push(0);
+        } else if (expectOperand) {
+          return undefined;
+        }
+        let top = ops[ops.length - 1];
+        while (top !== undefined && (mathPrecedence[top] ?? 0) >= (mathPrecedence[op] ?? 0)) {
+          ops.pop();
+          output.push(top);
+          top = ops[ops.length - 1];
+        }
+        ops.push(op);
+        expectOperand = true;
+        continue;
+      }
+    }
+
+    const leaf = mathLeaf(tokenOrValue, b);
+    if (leaf === undefined || !expectOperand) {
+      return undefined;
+    }
+    output.push(leaf);
+    expectOperand = false;
+  }
+
+  if (output.length === 0) {
+    return undefined;
+  }
+  let pending = ops.pop();
+  while (pending !== undefined) {
+    output.push(pending);
+    pending = ops.pop();
+  }
+
+  // Evaluate RPN into binary sum/product/divide tuples
+  const stack: ValueType[] = [];
+  for (const node of output) {
+    if (typeof node === "string") {
+      const right = stack.pop();
+      const left = stack.pop();
+      if (left === undefined || right === undefined) {
+        return undefined;
+      }
+      if (node === "+") {
+        stack.push(["fn", "sum", left, right]);
+      } else if (node === "-") {
+        stack.push(["fn", "sum", left, ["fn", "product", -1, right]]);
+      } else if (node === "*") {
+        stack.push(["fn", "product", left, right]);
+      } else {
+        stack.push(["fn", "divide", left, right]);
+      }
+    } else {
+      stack.push(node);
+    }
+  }
+
+  return stack.length === 1 ? stack[0] : undefined;
+}
+
+function splitMathArgs(tokens: TokenOrValue[]): TokenOrValue[][] {
+  return splitByDelimiter(tokens, (item) =>
+    Boolean(
+      item.type === "token" &&
+        (item.value.type === "comma" ||
+          (item.value.type === "delim" && item.value.value === ",")),
+    ),
+  );
+}
+
+export function mathFunction(
+  fn: CssFunction,
+  b: DeclarationBuilder,
+): ValueType | undefined {
+  if (fn.name === "calc") {
+    const tree = mathExpression(fn.arguments, b);
+    return tree === undefined ? undefined : ["fn", "calc", tree];
+  }
+
+  // round(strategy?, value, divisor)
+  if (fn.name === "round") {
+    let strategy = "nearest";
+    let argTokens = fn.arguments;
+    const first = argTokens[0];
+    if (first !== undefined && first.type === "token" && first.value.type === "ident") {
+      strategy = String(first.value.value);
+      argTokens = argTokens.slice(1);
+    }
+    const args = splitMathArgs(argTokens)
+      .map((group) => mathExpression(group, b))
+      .filter((arg) => arg !== undefined) as ValueType[];
+    const roundMin = args[0];
+    const roundMax = args[1];
+    if (roundMin === undefined || roundMax === undefined) {
+      return undefined;
+    }
+    return ["fn", "round", strategy, roundMin, roundMax];
+  }
+
+  const args = splitMathArgs(fn.arguments)
+    .map((group) => mathExpression(group, b))
+    .filter((arg) => arg !== undefined) as ValueType[];
+
+  switch (fn.name) {
+    case "min":
+    case "max":
+    case "hypot":
+      if (args.length < 2) {
+        return undefined;
+      }
+      return ["fn", toRNProperty(fn.name), ...args];
+    case "mod":
+    case "rem": {
+      const left = args[0];
+      const right = args[1];
+      if (left === undefined || right === undefined) {
+        return undefined;
+      }
+      return ["fn", toRNProperty(fn.name), left, right];
+    }
+    case "clamp": {
+      const min = args[0];
+      const value = args[1];
+      const max = args[2];
+      if (min === undefined || value === undefined || max === undefined) {
+        return undefined;
+      }
+      return ["fn", "clamp", min, value, max];
+    }
+    case "sign":
+    case "abs": {
+      const value = args[0];
+      if (value === undefined) {
+        return undefined;
+      }
+      return ["fn", toRNProperty(fn.name), value];
+    }
+    default:
+      return undefined;
+  }
 }
 
 function color(
@@ -2109,11 +2337,8 @@ export function length(
         const args = calcArguments(value.value, b);
         if (args === undefined) {
           return;
-        } else if (Array.isArray(args)) {
-          return ["fn", "calc", ...args];
-        } else {
-          return ["fn", "calc", args];
         }
+        return ["fn", "calc", args];
       }
       case "number": {
         return round(value.value);

@@ -33,10 +33,18 @@ tests). Verification is layered:
   the key exists. `StyleResolver::applyStyleMapping` was rewritten to
   aggregate transform props locally and write once (regression-tested in
   `cpp/tests/style_resolver_tests.cpp`).
-- `StyleFunction::resolveStyleFn` only implements `var()`. The compiler already
-  emits `["fn", "min", ...]`-style tuples, so CSS functions (min/max/calc/…)
-  fail silently at runtime. Tracked as the "CSS functions" checklist item;
-  documented as a skipped doctest.
+- CSS math functions are implemented end-to-end: the compiler emits
+  `"fn"`-tuples for calc/min/max/clamp/min/mod/rem/round/sign/abs/hypot
+  (including a token-level path for calcs lightningcss can't type, i.e. those
+  containing `var()`), and the C++ `StyleFunction` resolves them with
+  upstream's percent-mixing semantics. Covered by compiler contract tests
+  (`src/__tests__/compiler/css-functions.test.ts`) and doctests.
+  - Compiler bugs fixed along the way: calc tuples were flattened by spread
+    (`["fn", "calc", ...args]`), calc was double-wrapped (both `calcArguments`
+    and `length()` wrapped), and calc-with-var declarations were dropped
+    entirely.
+  - Remaining gap: unit tuples (`[{}, "vw", v, 1]`, em, …) are emitted but not
+    resolved by any runtime layer yet — declarations using them still drop.
 - The native test target must stay free of `react/renderer` and folly — only
   `ShadowTreeUpdateManager` pulls those in, and it is excluded from the
   doctest binary (exercised on-device instead).
