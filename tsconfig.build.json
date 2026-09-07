@@ -4,6 +4,7 @@
     "cpp",
     "example",
     "lib",
+    "src/__benchmarks__",
     "src/__tests__"
   ]
 }

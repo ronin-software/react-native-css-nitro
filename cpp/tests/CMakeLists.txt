@@ -64,3 +64,32 @@ endforeach()
 target_link_libraries(css_tests PRIVATE doctest::doctest)
 
 target_compile_options(css_tests PRIVATE -Wall -Wextra -Wpedantic)
+
+# –
+# Native benchmark binary (mirror of src/__benchmarks__/js-runtime.bench.test.ts)
+# –
+add_executable(
+  css_bench
+  ../bench/bench.cpp
+  ../StyleResolver.cpp
+  ../StyleFunction.cpp
+  ../Animations.cpp
+  ../VariableContext.cpp
+  ../Rules.cpp
+  ../Environment.cpp
+  ../PseudoClasses.cpp
+  ../ContainerContext.cpp
+  ${RN_ROOT}/ReactCommon/jsi/jsi/jsi.cpp
+  ${NITRO_MODULES_ROOT}/cpp/core/AnyMap.cpp
+)
+target_include_directories(css_bench PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/..
+  ${STAGED_INCLUDES}
+  ${CMAKE_CURRENT_LIST_DIR}/../../nitrogen/generated/shared/c++
+  ${RN_ROOT}/ReactCommon/jsi
+)
+foreach(dir ${_nitro_dirs})
+  if(IS_DIRECTORY "${dir}")
+    target_include_directories(css_bench PRIVATE "${dir}")
+  endif()
+endforeach()

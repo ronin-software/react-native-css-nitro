@@ -54,7 +54,10 @@
     "build": "bob build",
     "nitrogen": "nitrogen",
     "test:native": "bash scripts/test-native.sh",
-    "release": "release-it --only-version"
+    "release": "release-it --only-version",
+    "bench:cpp": "cmake -B cpp/tests/build -S cpp/tests -DCMAKE_BUILD_TYPE=Release && cmake --build cpp/tests/build --target css_bench && ./cpp/tests/build/css_bench",
+    "bench:js": "jest --watchman=false src/__benchmarks__",
+    "bench": "yarn bench:cpp && yarn bench:js"
   },
   "keywords": [
     "react-native",
@@ -140,7 +143,12 @@
     ],
     "testPathIgnorePatterns": [
       "<rootDir>/src/__tests__/blocked/"
-    ]
+    ],
+    "moduleNameMapper": {
+      "^react-native-css/native-internal$": "/tmp/react-native-css-ref/src/native-internal/index.ts",
+      "^react-native-css/native/(.*)$": "/tmp/react-native-css-ref/src/native/$1",
+      "^react-native-css/(.*)$": "/tmp/react-native-css-ref/src/$1"
+    }
   },
   "commitlint": {
     "extends": [
