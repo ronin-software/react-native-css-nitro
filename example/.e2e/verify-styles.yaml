@@ -1,0 +1,29 @@
+# End-to-end style verification for react-native-css-nitro.
+# Runs against the Release build on iPhone 17 Pro (iOS 26.5).
+appId: cssnitro.example
+---
+- launchApp
+- assertVisible:
+    id: e2e-jsi
+- assertVisible:
+    id: e2e-color
+- assertVisible:
+    id: e2e-calc
+- assertVisible:
+    id: e2e-var
+- assertVisible:
+    id: e2e-mq
+- assertVisible:
+    id: e2e-shadow
+- assertVisible:
+    id: e2e-transform
+- assertVisible:
+    id: e2e-press
+- takeScreenshot: e2e-initial
+# tap the pressable row (its pressed-state styling was verified via an
+# agent-device hold: yellow background + black text mid-press)
+- tapOn:
+    id: e2e-press
+- waitForAnimationToEnd:
+    timeout: 2000
+- takeScreenshot: e2e-after-tap

@@ -1,8 +1,9 @@
 {
   "extends": "./tsconfig",
   "exclude": [
+    "cpp",
     "example",
     "lib",
-    "cpp"
+    "src/__tests__"
   ]
 }

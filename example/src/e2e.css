@@ -1,0 +1,59 @@
+/* End-to-end verification styles — compiled by the Metro plugin at bundle
+   time and injected via StyleRegistry.addStyleSheet */
+
+.e2e-row {
+  padding: 8px;
+  border-radius: 8px;
+}
+
+/* compile-time color resolution (hsl → hex) */
+.e2e-color {
+  color: hsl(120 100% 25%);
+}
+
+/* calc + units */
+.e2e-calc {
+  color: #000080;
+  font-size: calc(10px + 8px);
+}
+
+/* runtime CSS variables */
+.e2e-var {
+  --brand: #aa00aa;
+  color: var(--brand);
+}
+
+/* media query: iPhone 17 Pro is 402pt wide */
+.e2e-mq {
+  color: #888888;
+}
+
+@media (min-width: 300px) {
+  .e2e-mq {
+    color: #ff8800;
+  }
+}
+
+/* box-shadow */
+.e2e-shadow {
+  background-color: #ffffff;
+  box-shadow: 0 4px 8px #00000080;
+}
+
+/* transform */
+.e2e-transform {
+  color: #008888;
+  transform: rotate(45deg);
+}
+
+/* active pseudo-class: tapping turns it yellow, releasing restores blue */
+.e2e-press {
+  background-color: #0000ff;
+  color: #ffffff;
+  padding: 12px;
+}
+
+.e2e-press:active {
+  background-color: #ffff00;
+  color: #000000;
+}

@@ -205,10 +205,10 @@ export class SelectorParser {
         context.addPseudoClass("f", true);
         return "valid";
       case "disabled":
-        context.addAttributeQuery(["true", "disabled"] as const);
+        context.addAttributeQuery(["present", "disabled"] as const);
         return "valid";
       case "empty":
-        context.addAttributeQuery(["false", "children"] as const);
+        context.addAttributeQuery(["absent", "children"] as const);
         return "valid";
       default:
         return "invalid";
@@ -239,13 +239,13 @@ export class SelectorParser {
 
     if (component.operation) {
       const operator = this.mapAttributeOperator(component.operation.operator);
-      if (operator && operator !== "true" && operator !== "false") {
+      if (operator && operator !== "present" && operator !== "absent") {
         return [operator, attributeName, component.operation.value] as const;
       }
     }
 
     // No operation means checking for attribute existence (boolean)
-    return ["true", attributeName] as const;
+    return ["present", attributeName] as const;
   }
 
   private mapAttributeOperator(

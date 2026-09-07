@@ -19,6 +19,10 @@ Pod::Spec.new do |s|
     "ios/**/*.{m,mm}",
     "cpp/**/*.{hpp,cpp}",
   ]
+  s.exclude_files = [
+    # Native test harness + its staged headers shadow the real NitroModules
+    "cpp/tests/**/*",
+  ]
 
   s.dependency 'React-jsi'
   s.dependency 'React-callinvoker'

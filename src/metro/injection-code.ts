@@ -25,10 +25,10 @@ export function getNativeInjectionCode(
     .join("\n");
 
   const contents = values
-    .map((value) => `StyleRegistry.addStyleSheet(${JSON.stringify(value)});`)
+    .map((value) => `getStyleRegistry().addStyleSheet(${JSON.stringify(value)});`)
     .join("\n");
 
   return Buffer.from(
-    `import { StyleRegistry } from "react-native-css-nitro";\n${importStatements}\n${contents};export {};`,
+    `import { getStyleRegistry } from "react-native-css-nitro";\n${importStatements}\n${contents};export {};`,
   );
 }

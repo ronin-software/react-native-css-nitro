@@ -76,6 +76,21 @@ the styled() HOC). Bugs found by porting:
 - pseudo-class handlers recursed into themselves (captured the wrapper as the
   "original" callback)
 
+## Device e2e
+
+The example app (Release build, iPhone 17 Pro / iOS 26.5) is verified
+end-to-end via Maestro (`example/.e2e/verify-styles.yaml`) and agent-device:
+compile-time colors, calc, CSS variables, platform media queries, box-shadow,
+transform, Nitro C++ interop, and the full :active press/release lifecycle.
+
+Findings from device verification:
+- `uiManager.updateShadowTree` (the shadow-tree direct-write path) is broken
+  under RN 0.82 Fabric — colors render incorrectly and nodes disappear. The
+  C++ computed now always re-renders via React instead (correctness over the
+  perf win until ShadowTreeUpdateManager is fixed).
+- Nitrogen generated TRUE/FALSE enum names colliding with ObjC macros —
+  attribute-query wire values renamed to present/absent.
+
 ## Next steps
 
 1. Port remaining upstream suites: animations, transitions, calc, box-shadow,

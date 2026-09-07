@@ -39,11 +39,11 @@ function testAttributeQueryRule(
   let [operator, key, value, flag] = rule;
 
   if (!source) {
-    return operator === "false";
+    return operator === "absent";
   }
 
-  if (operator === "true" || operator === "false") {
-    return operator === "true"
+  if (operator === "present" || operator === "absent") {
+    return operator === "present"
       ? key in source && source[key]
       : !(key in source) || !source[key];
   }

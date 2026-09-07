@@ -198,11 +198,11 @@ export type AttributeQueryRule =
   | [AttrSelectorBooleanOperator, string]
   | [AttrSelectorOperator, string, string | number, AttrCaseFlag?];
 
-export type AttrSelectorBooleanOperator = "true" | "false";
+export type AttrSelectorBooleanOperator = "present" | "absent";
 
 export type AttrSelectorOperator =
-  | "true"
-  | "false"
+  | "present"
+  | "absent"
   | "eq"
   | "tilde"
   | "pipe"

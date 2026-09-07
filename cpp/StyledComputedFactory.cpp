@@ -139,34 +139,14 @@ namespace margelo::nitro::cssnitro {
 
                     // Only perform these actions if this is a recompute (prev exists)
                     if (prev != nullptr) {
-                        // Check if animations or transitions are present
-                        bool hasAnimations = false;
-                        if (next->style.has_value()) {
-                            hasAnimations = next->style.value()->contains("animationName") ||
-                                            next->style.value()->contains("transitionProperty");
-                        }
-                        if (!hasAnimations && next->importantStyle.has_value()) {
-                            hasAnimations =
-                                    next->importantStyle.value()->contains("animationName") ||
-                                    next->importantStyle.value()->contains("transitionProperty");
-                        }
-
-                        // If animations/transitions are present, or props changed, we must rerender
-                        if (hasAnimations || next->props.has_value() ||
-                            next->importantProps.has_value()) {
-                            (void) rerender();
-                        } else {
-                            // Only update shadow tree if no animations (shadow tree can't handle them)
-                            reactnativecss::Effect::batch([&]() {
-                                if (next->style.has_value()) {
-                                    shadowUpdatesPtr->addUpdates(componentId, next->style.value());
-                                }
-                                if (next->importantStyle.has_value()) {
-                                    shadowUpdatesPtr->addUpdates(componentId,
-                                                                 next->importantStyle.value());
-                                }
-                            });
-                        }
+                        // Always re-render via React. The shadow-tree
+                        // direct-write path (uiManager.updateShadowTree) is
+                        // unreliable under RN 0.82 Fabric: colors render
+                        // incorrectly and nodes can disappear. Revisit once
+                        // ShadowTreeUpdateManager is fixed against this RN
+                        // version — until then correctness beats the perf win.
+                        (void) shadowUpdatesPtr;
+                        (void) rerender();
 
                         // Now safe to delete prev
                         delete prev;
