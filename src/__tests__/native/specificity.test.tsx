@@ -1,16 +1,10 @@
 import { StyleSheet, type ViewProps } from "react-native";
-import type { ComponentType } from "react";
 
 import { fireEvent, render } from "@testing-library/react-native";
 import { Text } from "../../components/Text";
 import { registerCSS, testID } from "../../jest";
+import { styled } from "../../runtime";
 
-
-// styled() HOC is the "3rd party hook" checklist item — not ported yet.
-// Tests using it stay skipped; this stub keeps TS happy.
-const styled = (..._args: unknown[]): ComponentType<Record<string, unknown>> => {
-  throw new Error("styled() is not ported yet");
-};
 
 test("inline styles", () => {
   registerCSS(`.red { background-color: red; }`);
@@ -101,7 +95,7 @@ test("important - modifiers", () => {
   expect(component.props.style).toStrictEqual({ color: "#00f" });
 });
 
-test.skip("passThrough - inline", () => {
+test("passThrough - inline", () => {
   registerCSS(`
     .red { color: red; }
   `);
@@ -124,7 +118,7 @@ test.skip("passThrough - inline", () => {
   });
 });
 
-test.skip("passThrough - inline reversed", () => {
+test("passThrough - inline reversed", () => {
   registerCSS(`
     .red { color: red; }
   `);
@@ -147,7 +141,7 @@ test.skip("passThrough - inline reversed", () => {
   });
 });
 
-test.skip("passThrough - inline important", () => {
+test("passThrough - inline important", () => {
   registerCSS(`
     .red { color: red !important; }
   `);
@@ -170,7 +164,7 @@ test.skip("passThrough - inline important", () => {
   });
 });
 
-test.skip("passThrough - inline important existing", () => {
+test("passThrough - inline important existing", () => {
   registerCSS(`
     .red { color: red !important; }
     .blue { color: blue !important; }

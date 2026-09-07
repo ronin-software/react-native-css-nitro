@@ -224,7 +224,16 @@ namespace margelo::nitro::cssnitro {
                                                                       *shadowUpdates_,
                                                                       variableScope,
                                                                       containerScope,
-                                                                      validAttributeQueries);
+                                                                      validAttributeQueries,
+                                                                      inlineVarsObs);
+
+            // Per-component inline variables (vars())
+            std::shared_ptr<reactnativecss::Observable<std::shared_ptr<AnyMap>>>
+                    inlineVarsObs;
+            auto varsIt = componentVariables_.find(componentId);
+            if (varsIt != componentVariables_.end()) {
+                inlineVarsObs = varsIt->second;
+            }
 
             // Store the new computed with its parameters
             computedMap_[componentId] = ComputedEntry{
@@ -278,6 +287,21 @@ namespace margelo::nitro::cssnitro {
     void HybridStyleRegistry::setWindowDimensions(double width, double height, double scale,
                                                   double fontScale) {
         reactnativecss::env::setWindowDimensions(width, height, scale, fontScale);
+    }
+
+    void HybridStyleRegistry::updateComponentInlineVariables(
+            const std::string &componentId,
+            const std::shared_ptr<::margelo::nitro::AnyMap> &variables) {
+        auto it = componentVariables_.find(componentId);
+        if (it == componentVariables_.end()) {
+            it = componentVariables_
+                     .emplace(componentId,
+                              reactnativecss::Observable<
+                                  std::shared_ptr<::margelo::nitro::AnyMap>>::
+                                      create(nullptr))
+                     .first;
+        }
+        it->second->set(variables);
     }
 
     void HybridStyleRegistry::setPlatform(const std::string &platform) {

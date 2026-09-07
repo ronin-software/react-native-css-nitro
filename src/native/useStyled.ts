@@ -11,6 +11,43 @@ import { ContainerContext, VariableContext } from "./contexts";
 const EMPTY_DECLARATIONS: Declarations = {};
 const REDUCER = <T>(state: T) => ({ ...state });
 
+/** Marker produced by styled(…, { passThrough: true }) */
+const INLINE_RULE_SYMBOL = Symbol.for("react-native-css.inline-rule");
+/** Marker produced by vars() */
+const VARS_SYMBOL = Symbol.for("react-native-css.vars");
+
+/**
+ * Extract classNames and inline variables from pass-through/vars markers
+ * embedded in a style prop (array or object).
+ */
+function extractMarkers(
+  style: unknown,
+  classNames: string[],
+  variables: Record<string, any>,
+): void {
+  if (!style || typeof style !== "object") {
+    return;
+  }
+  if (Array.isArray(style)) {
+    for (const item of style) {
+      extractMarkers(item, classNames, variables);
+    }
+    return;
+  }
+  const record = style as Record<PropertyKey, unknown>;
+  const inline = record[INLINE_RULE_SYMBOL];
+  if (typeof inline === "string") {
+    classNames.push(...inline.split(/\s+/).filter(Boolean));
+  }
+  if (VARS_SYMBOL in record) {
+    for (const [key, value] of Object.entries(record)) {
+      if (key !== String(VARS_SYMBOL)) {
+        variables[key] = value;
+      }
+    }
+  }
+}
+
 export function useStyledProps(
   componentId: string,
   className: string | undefined,
@@ -23,10 +60,29 @@ export function useStyledProps(
   let variableScope = use(VariableContext);
   let containerScope = use(ContainerContext);
 
-  const declarations = className
+  // Pass-through / vars() markers in the style prop extend this component's
+  // classes and inline variables (upstream: INLINE_RULE_SYMBOL / VAR_SYMBOL)
+  const extraClassNames: string[] = [];
+  const inlineVariables: Record<string, any> = {};
+  extractMarkers(originalProps.style, extraClassNames, inlineVariables);
+  const effectiveClassName =
+    className && extraClassNames.length
+      ? `${className} ${extraClassNames.join(" ")}`
+      : className || extraClassNames.join(" ") || undefined;
+
+  const inlineVarsKey = JSON.stringify(inlineVariables);
+  useMemo(() => {
+    if (Object.keys(inlineVariables).length === 0) {
+      return;
+    }
+    StyleRegistry.updateComponentInlineVariables(componentId, inlineVariables);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inlineVarsKey]);
+
+  const declarations = effectiveClassName
     ? StyleRegistry.getDeclarations(
         componentId,
-        className,
+        effectiveClassName,
         variableScope,
         containerScope,
       )
@@ -45,10 +101,9 @@ export function useStyledProps(
   // Update the variable scope after we have retrieved the declarations, so it uses its own scope
   variableScope = declarations.variableScope ?? variableScope;
 
-  console.log("useStyled", { variableScope, containerScope });
 
   const componentData = useMemo(() => {
-    if (!className) {
+    if (!effectiveClassName) {
       return {};
     }
 
@@ -59,14 +114,14 @@ export function useStyledProps(
     return StyleRegistry.registerComponent(
       componentId,
       rerender,
-      className,
+      effectiveClassName,
       variableScope,
       containerScope,
       validAttributeQueries,
     );
   }, [
     componentId,
-    className,
+    effectiveClassName,
     variableScope,
     containerScope,
     validAttributeQueryIds,

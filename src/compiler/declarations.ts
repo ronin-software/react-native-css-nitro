@@ -7,6 +7,8 @@ import { customDeclaration, parsers, unparsed, type Parser } from "./parsers";
 import { toRNProperty } from "./selectors-new";
 
 export class DeclarationBuilder {
+  /** True while parsing a custom property value — rem stays runtime-resolved */
+  parsingVariable = false;
   private declaration: Partial<HybridStyleRule> = {};
   private readonly declarations: Partial<HybridStyleRule>[] = [
     this.declaration,
@@ -15,10 +17,15 @@ export class DeclarationBuilder {
   constructor(
     private options: CompilerOptions,
     private mapping: Record<string, string>,
+    /** rem base from a :root font-size — overrides the inlineRem option */
+    private remBase?: number,
   ) {}
 
   getOptions() {
-    return this.options;
+    if (this.remBase === undefined) {
+      return this.options;
+    }
+    return { ...this.options, inlineRem: this.remBase };
   }
 
   getAllRules() {

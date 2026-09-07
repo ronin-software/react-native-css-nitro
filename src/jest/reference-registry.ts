@@ -45,6 +45,7 @@ export class ReferenceRegistry {
   private window = { width: 0, height: 0, scale: 1, fontScale: 1 };
   private colorScheme: "light" | "dark" | null = null;
   private componentStates = new Map<string, ComponentState>();
+  private componentVars = new Map<string, Record<string, AnyValue>>();
   private rerenders = new Map<string, () => void>();
 
   /** Harness hook: Appearance color scheme */
@@ -68,6 +69,7 @@ export class ReferenceRegistry {
     this.scopedVariables.clear();
     this.keyframes.clear();
     this.componentStates.clear();
+    this.componentVars.clear();
     this.rerenders.clear();
     this.window = { width: 0, height: 0, scale: 1, fontScale: 1 };
     this.colorScheme = null;
@@ -221,6 +223,14 @@ export class ReferenceRegistry {
       }
     }
 
+    // vars() inline variables (component-scoped, override rule variables)
+    const componentVars = this.componentVars.get(componentId);
+    if (componentVars) {
+      for (const [name, value] of Object.entries(componentVars)) {
+        this.setVariable(variableScope, name, value);
+      }
+    }
+
     // Merge declarations/props, first-wins, important rules (s[0] > 0)
     // split into their own targets — mirrors StyledComputedFactory
     const style: Record<string, AnyValue> = {};
@@ -279,6 +289,14 @@ export class ReferenceRegistry {
 
   updateComponentLayout(_componentId: string, _value: unknown): void {
     // Container queries pass in the reference impl — nothing to store
+  }
+
+  updateComponentInlineVariables(
+    componentId: string,
+    variables: Record<string, AnyValue>,
+  ): void {
+    this.componentVars.set(componentId, { ...variables });
+    this.notifyAll();
   }
 
   updateComponentInlineStyleKeys(_componentId: string, _keys: string[]): void {
@@ -453,7 +471,13 @@ export class ReferenceRegistry {
       if (resolved === undefined) {
         continue;
       }
-      target[key] = resolved;
+      // null (unset/cleared) keeps the key with an undefined value
+      if (resolved === null) {
+        // RN styles treat undefined values as absent — the key must exist
+        target[key] = undefined as unknown as AnyValue;
+      } else {
+        target[key] = resolved;
+      }
     }
   }
 
@@ -516,18 +540,24 @@ export class ReferenceRegistry {
           return this.resolveUnit(kind, arg, variableScope);
         }
       }
-      // Single-element lists around fn/marker values unwrap; other arrays
-      // (e.g. boxShadow) are legitimate values
-      if (
-        value.length === 1 &&
-        Array.isArray(value[0]) &&
-        (value[0][0] === "fn" ||
-          (value[0].length >= 3 &&
-            typeof value[0][0] === "object" &&
-            typeof value[0][1] === "string"))
-      ) {
-        return this.resolveValue(value[0], variableScope);
+      // Single-element lists around fn/marker/string values unwrap; other
+      // arrays (e.g. boxShadow) are legitimate values
+      if (value.length === 1 && value[0] !== undefined) {
+        const inner = value[0];
+        if (
+          Array.isArray(inner) ||
+          (typeof inner === "string" && inner !== "unset")
+        ) {
+          return this.resolveValue(inner, variableScope);
+        }
+        // "unset" wrapped in a list still means unset
+        if (inner === "unset") {
+          return null;
+        }
       }
+    }
+    if (value === "unset") {
+      return null;
     }
     return value;
   }

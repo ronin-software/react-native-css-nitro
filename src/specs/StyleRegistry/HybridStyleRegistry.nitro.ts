@@ -62,6 +62,11 @@ export interface StyleRegistry
     componentId: string,
     inlineStyleKeys: string[],
   ): void;
+  /** Inline variables set via vars() — resolved against this component's scope */
+  updateComponentInlineVariables(
+    componentId: string,
+    variables: AnyMap,
+  ): void;
   updateComponentLayout(componentId: string, value: LayoutRectangle): void;
   updateComponentState(
     componentId: string,

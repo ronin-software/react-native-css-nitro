@@ -2,10 +2,13 @@ import { View } from "react-native";
 
 import { act, renderHook } from "@testing-library/react-native";
 import { registerCSS } from "../../jest";
-import { useNativeCss, VariableContext } from "react-native-css/native";
+import { useNativeCss } from "../../native";
 
-import { dimensions, VAR_SYMBOL, vh, vw } from "../../native/reactivity";
-import { emVariableName } from "../../native/styles/constants";
+import { dimensions, vh, vw } from "../../native/reactivity";
+
+function current(result: { current: unknown }): any {
+  return result.current as any;
+}
 
 test("px", () => {
   registerCSS(`.my-class { width: 10px; }`);
@@ -14,8 +17,8 @@ test("px", () => {
     return useNativeCss(View, { className: "my-class" });
   });
 
-  expect(result.current.type).toBe(View);
-  expect(result.current.props).toMatchObject({
+  expect(current(result).type).toBe(View);
+  expect(current(result).props).toMatchObject({
     style: { width: 10 },
   });
 });
@@ -27,8 +30,8 @@ test("%", () => {
     return useNativeCss(View, { className: "my-class" });
   });
 
-  expect(result.current.type).toBe(View);
-  expect(result.current.props).toMatchObject({
+  expect(current(result).type).toBe(View);
+  expect(current(result).props).toMatchObject({
     style: { width: "10%" },
   });
 });
@@ -42,8 +45,8 @@ test("vw", () => {
 
   expect(vw.get()).toEqual(750);
 
-  expect(result.current.type).toBe(View);
-  expect(result.current.props).toMatchObject({
+  expect(current(result).type).toBe(View);
+  expect(current(result).props).toMatchObject({
     style: { width: 75 },
   });
 
@@ -55,7 +58,7 @@ test("vw", () => {
   });
 
   expect(vw.get()).toEqual(100);
-  expect(result.current.props).toMatchObject({
+  expect(current(result).props).toMatchObject({
     style: { width: 10 },
   });
 });
@@ -68,8 +71,8 @@ test("vh", () => {
   });
 
   expect(vh.get()).toEqual(1334);
-  expect(result.current.type).toBe(View);
-  expect(result.current.props).toMatchObject({
+  expect(current(result).type).toBe(View);
+  expect(current(result).props).toMatchObject({
     style: { height: 133.4 },
   });
 
@@ -81,7 +84,7 @@ test("vh", () => {
   });
 
   expect(vh.get()).toEqual(100);
-  expect(result.current.props).toMatchObject({
+  expect(current(result).props).toMatchObject({
     style: { height: 10 },
   });
 });
@@ -93,15 +96,9 @@ test("rem - default", () => {
     return useNativeCss(View, { className: "my-class" });
   });
 
-  expect(result.current.type).toBe(VariableContext.Provider);
-  expect(result.current.props.value).toStrictEqual({
-    [VAR_SYMBOL]: true,
-    [emVariableName]: 140,
-  });
-
-  expect(result.current.props.children.type).toBe(View);
-  expect(result.current.props.children.props).toMatchObject({
-    style: { fontSize: 140 },
+  expect(current(result).type).toBe(View);
+  expect(current(result).props.style).toMatchObject({
+    fontSize: 140,
   });
 });
 
@@ -114,15 +111,9 @@ test("rem - inline override", () => {
     return useNativeCss(View, { className: "my-class" });
   });
 
-  expect(result.current.type).toBe(VariableContext.Provider);
-  expect(result.current.props.value).toStrictEqual({
-    [VAR_SYMBOL]: true,
-    [emVariableName]: 100,
-  });
-
-  expect(result.current.props.children.type).toBe(View);
-  expect(result.current.props.children.props).toMatchObject({
-    style: { fontSize: 100 },
+  expect(current(result).type).toBe(View);
+  expect(current(result).props.style).toMatchObject({
+    fontSize: 100,
   });
 });
 
@@ -136,15 +127,9 @@ test("rem - css root font-size override", () => {
     return useNativeCss(View, { className: "my-class" });
   });
 
-  expect(result.current.type).toBe(VariableContext.Provider);
-  expect(result.current.props.value).toStrictEqual({
-    [VAR_SYMBOL]: true,
-    [emVariableName]: 160,
-  });
-
-  expect(result.current.props.children.type).toBe(View);
-  expect(result.current.props.children.props).toMatchObject({
-    style: { fontSize: 160 },
+  expect(current(result).type).toBe(View);
+  expect(current(result).props.style).toMatchObject({
+    fontSize: 160,
   });
 });
 
@@ -158,10 +143,9 @@ test("rem - via var() inlining picks up css root font-size ", () => {
     return useNativeCss(View, { className: "text-base" });
   });
 
-  expect(result.current.type).toBe(VariableContext.Provider);
-  expect(result.current.props.children.type).toBe(View);
-  expect(result.current.props.children.props).toMatchObject({
-    style: { fontSize: 16 },
+  expect(current(result).type).toBe(View);
+  expect(current(result).props.style).toMatchObject({
+    fontSize: 16,
   });
 });
 
@@ -180,15 +164,9 @@ test("rem - css override", () => {
     return useNativeCss(View, { className: "my-class" });
   });
 
-  expect(result.current.type).toBe(VariableContext.Provider);
-  expect(result.current.props.value).toStrictEqual({
-    [VAR_SYMBOL]: true,
-    [emVariableName]: [{}, "rem", 10],
-  });
-
-  expect(result.current.props.children.type).toBe(View);
-  expect(result.current.props.children.props).toMatchObject({
-    style: { fontSize: 100 },
+  expect(current(result).type).toBe(View);
+  expect(current(result).props.style).toMatchObject({
+    fontSize: 100,
   });
 });
 
@@ -199,8 +177,8 @@ test("<ratio>", () => {
     return useNativeCss(View, { className: "my-class" });
   });
 
-  expect(result.current.type).toBe(View);
-  expect(result.current.props).toMatchObject({
+  expect(current(result).type).toBe(View);
+  expect(current(result).props).toMatchObject({
     style: { aspectRatio: "16/9" },
   });
 });

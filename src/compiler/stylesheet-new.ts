@@ -51,6 +51,8 @@ export class CompilerStyleSheet {
     Record<string, VariableItem[]>,
   ] = [{}, {}];
   private ruleOrder = 0;
+  /** rem base declared via :root { font-size } — later rem values bake with it */
+  private remBase?: number;
   private keyframes: HybridAnimation = {};
 
   constructor(public options: CompilerOptions) {
@@ -118,7 +120,7 @@ export class CompilerStyleSheet {
       return;
     }
 
-    const rule = new DeclarationBuilder(this.options, this.currentMapping);
+    const rule = new DeclarationBuilder(this.options, this.currentMapping, this.remBase);
     for (const declaration of declarations) {
       parseDeclaration(declaration, rule);
     }
@@ -130,7 +132,7 @@ export class CompilerStyleSheet {
     if (!declarations || declarations.length === 0) {
       return;
     }
-    const rule = new DeclarationBuilder(this.options, this.currentMapping);
+    const rule = new DeclarationBuilder(this.options, this.currentMapping, this.remBase);
     for (const declaration of declarations) {
       parseDeclaration(declaration, rule);
     }
@@ -162,7 +164,7 @@ export class CompilerStyleSheet {
         }
       });
 
-      const rule = new DeclarationBuilder(this.options, this.currentMapping);
+      const rule = new DeclarationBuilder(this.options, this.currentMapping, this.remBase);
       for (const declaration of frame.declarations.declarations) {
         parseDeclaration(declaration, rule);
       }
@@ -227,12 +229,30 @@ export class CompilerStyleSheet {
     // Values are [{v, m?}] items so media conditions ride along; the runtime
     // picks the first item whose condition passes (dark subtype forces a
     // prefers-color-scheme condition).
-    const vars = rule.v;
-    if (!vars) {
+    //
+    // A font-size on :root also sets the runtime's rem base.
+    const vars = { ...(rule.v ?? {}) };
+    if (rule.d) {
+      const fontSize = rule.d?.["fontSize"];
+      if (fontSize !== undefined) {
+        vars["__rn-css-rem"] = fontSize;
+      }
+    }
+    if (Object.keys(vars).length === 0) {
       return;
     }
     const media = this.currentMediaConditions(selector);
     const target = this.variableSets[selector.type === "rootVariables" ? 0 : 1];
+
+    // :root font-size declares the rem base for the whole stylesheet
+    if (rule.d) {
+      const fontSize = rule.d["fontSize"];
+      if (typeof fontSize === "number") {
+        this.remBase = fontSize;
+        target["__rn-css-rem"] = [{ v: fontSize }];
+      }
+    }
+
     for (const [name, value] of Object.entries(vars)) {
       const list = target[name] ?? [];
       list.push(media ? { v: value, m: media } : { v: value });

@@ -29,7 +29,8 @@ namespace margelo::nitro::cssnitro {
             ShadowTreeUpdateManager &shadowUpdates,
             const std::string &variableScope,
             const std::string &containerScope,
-            const std::vector<std::string> &validAttributeQueries) {
+            const std::vector<std::string> &validAttributeQueries,
+            const std::shared_ptr<reactnativecss::Observable<std::shared_ptr<AnyMap>>> &inlineVariables) {
 
         // Capture rerender by value (copy) so it persists through fast refresh
         // Capture shadowUpdates by pointer since it's a stable singleton
@@ -80,6 +81,17 @@ namespace margelo::nitro::cssnitro {
                               [](const HybridStyleRule &a, const HybridStyleRule &b) {
                                   return Specificity::sort(a.s, b.s);
                               });
+
+                    // Inline variables from vars() (per-component, reactive)
+                    if (inlineVariables) {
+                        auto vars = get(*inlineVariables);
+                        if (vars) {
+                            for (const auto &kv: vars->getMap()) {
+                                VariableContext::setVariable(variableScope, kv.first,
+                                                             kv.second);
+                            }
+                        }
+                    }
 
                     // Process the inline variables
                     for (const HybridStyleRule &styleRule: allStyleRules) {
@@ -181,6 +193,20 @@ namespace margelo::nitro::cssnitro {
 
                 // Skip if resolveStyle returns monostate (unresolved)
                 if (std::holds_alternative<std::monostate>(resolvedValue)) {
+                    continue;
+                }
+
+                // "unset" clears the property: keep the key with undefined.
+                // The compiler wraps values in single-element lists.
+                auto isUnset = [](const AnyValue &v) {
+                    return std::holds_alternative<std::string>(v) &&
+                           std::get<std::string>(v) == "unset";
+                };
+                if (isUnset(resolvedValue) ||
+                    (std::holds_alternative<AnyArray>(resolvedValue) &&
+                     std::get<AnyArray>(resolvedValue).size() == 1 &&
+                     isUnset(std::get<AnyArray>(resolvedValue)[0]))) {
+                    targetMap[kv.first] = AnyValue();
                     continue;
                 }
 

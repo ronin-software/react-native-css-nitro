@@ -1,6 +1,7 @@
 {
   "extends": "./tsconfig",
   "exclude": [
+    "bench",
     "cpp",
     "example",
     "lib",

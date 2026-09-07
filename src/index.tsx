@@ -4,6 +4,14 @@ import type { CssNitro } from "./CssNitro.nitro";
 import type { Math } from "./specs/Math.nitro";
 
 export { getStyleRegistry, setStyleRegistry } from "./specs/StyleRegistry";
+export {
+  styled,
+  useCssElement,
+  vars,
+  usePassthrough,
+  VAR_SYMBOL,
+} from "./runtime";
+export type { StyledConfiguration, StyledOptions } from "./runtime";
 export type * from "./specs/StyleRegistry";
 
 export { useStyledProps as useStyled } from "./native/useStyled";

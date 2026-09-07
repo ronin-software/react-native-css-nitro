@@ -68,6 +68,10 @@ namespace margelo::nitro::cssnitro {
         void updateComponentInlineStyleKeys(const std::string &componentId,
                                             const std::vector<std::string> &inlineStyleKeys) override;
 
+        void updateComponentInlineVariables(
+            const std::string &componentId,
+            const std::shared_ptr<::margelo::nitro::AnyMap> &variables) override;
+
         void
         setWindowDimensions(double width, double height, double scale, double fontScale) override;
 
@@ -82,6 +86,11 @@ namespace margelo::nitro::cssnitro {
         void loadHybridMethods() override;
 
     private:
+        std::unordered_map<
+            std::string,
+            std::shared_ptr<reactnativecss::Observable<
+                std::shared_ptr<::margelo::nitro::AnyMap>>>>
+                componentVariables_;
         jsi::Value linkComponent(jsi::Runtime &runtime,
                                  const jsi::Value &thisValue,
                                  const jsi::Value *args, size_t count);

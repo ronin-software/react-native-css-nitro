@@ -52,6 +52,8 @@ namespace margelo::nitro::cssnitro {
             ShadowTreeUpdateManager &shadowUpdates,
             const std::string &variableScope,
             const std::string &containerScope,
-            const std::vector<std::string> &validAttributeQueries);
+            const std::vector<std::string> &validAttributeQueries,
+            const std::shared_ptr<reactnativecss::Observable<std::shared_ptr<margelo::nitro::AnyMap>>> &inlineVariables
+                    = nullptr);
 
 } // namespace margelo::nitro::cssnitro

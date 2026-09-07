@@ -40,6 +40,18 @@ export function compile(code: Buffer | string, options: CompilerOptions = {}) {
     }
   }
 
+  // A :root font-size declares the runtime rem base; when the user hasn't
+  // explicitly set inlineRem, later rem values bake with it. Detected via a
+  // cheap pre-scan (the visitor may process rules out of source order).
+  if (options.inlineRem !== false) {
+    const rootRemMatch = code
+      .toString()
+      .match(/:root[^{]*\{[^}]*font-size:\s*([\d.]+)px/);
+    if (rootRemMatch) {
+      options = { ...options, inlineRem: Number(rootRemMatch[1]) };
+    }
+  }
+
   const stylesheet = new CompilerStyleSheet(options);
 
   const { lightningcss, Features } = lightningcssLoader();

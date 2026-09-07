@@ -529,7 +529,10 @@ export function customDeclaration(
   } else if (property in parsers || property.startsWith("-rn-")) {
     b.set(property, unparsed(declaration.value.value, b));
   } else if (property.startsWith("--")) {
+    // Custom property values resolve at use-site: keep rem runtime-resolved
+    b.parsingVariable = true;
     b.setVariable(property, unparsed(declaration.value.value, b));
+    b.parsingVariable = false;
   } else {
     // builder.addWarning("property", declaration.value.name);
   }
@@ -2280,7 +2283,7 @@ export function length(
         }
       }
       case "rem":
-        if (typeof inlineRem === "number") {
+        if (typeof inlineRem === "number" && !b?.parsingVariable) {
           return value.value * inlineRem;
         } else {
           return [{}, "rem", round(value.value)];

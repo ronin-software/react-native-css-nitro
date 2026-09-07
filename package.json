@@ -21,7 +21,17 @@
       "types": "./lib/typescript/module/src/metro/index.d.ts",
       "default": "./lib/module/metro/index.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./runtime": {
+      "source": "./src/runtime.ts",
+      "types": "./lib/typescript/module/src/runtime.d.ts",
+      "default": "./lib/module/runtime.js"
+    },
+    "./native": {
+      "source": "./src/native/index.ts",
+      "types": "./lib/typescript/module/src/native/index.d.ts",
+      "default": "./lib/module/native/index.js"
+    }
   },
   "files": [
     "src",
@@ -56,7 +66,7 @@
     "test:native": "bash scripts/test-native.sh",
     "release": "release-it --only-version",
     "bench:cpp": "cmake -B cpp/tests/build -S cpp/tests -DCMAKE_BUILD_TYPE=Release && cmake --build cpp/tests/build --target css_bench && ./cpp/tests/build/css_bench",
-    "bench:js": "jest --watchman=false src/__benchmarks__",
+    "bench:js": "jest --config bench/jest.bench.config.js --watchman=false",
     "bench": "yarn bench:cpp && yarn bench:js"
   },
   "keywords": [
@@ -145,9 +155,9 @@
       "<rootDir>/src/__tests__/blocked/"
     ],
     "moduleNameMapper": {
-      "^react-native-css/native-internal$": "/tmp/react-native-css-ref/src/native-internal/index.ts",
-      "^react-native-css/native/(.*)$": "/tmp/react-native-css-ref/src/native/$1",
-      "^react-native-css/(.*)$": "/tmp/react-native-css-ref/src/$1"
+      "^react-native-css/native-internal$": "/Users/dscanlon/nativewind-e2e/react-native-css/src/native-internal/index.ts",
+      "^react-native-css/native/(.*)$": "/Users/dscanlon/nativewind-e2e/react-native-css/src/native/$1",
+      "^react-native-css/(.*)$": "/Users/dscanlon/nativewind-e2e/react-native-css/src/$1"
     }
   },
   "commitlint": {
