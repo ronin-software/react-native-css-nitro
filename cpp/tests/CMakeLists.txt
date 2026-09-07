@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(nitro_computed_tests CXX)
+project(nitro_css_tests CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -16,42 +16,51 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(doctest)
 
-add_executable(computed_tests computed_tests.cpp shadow_tree_manager_tests.cpp)
-
-# Include path to our headers (../ includes effect/observable/computed)
-target_include_directories(computed_tests PRIVATE ${CMAKE_CURRENT_LIST_DIR}/..)
-
-# Helper to include all immediate subdirectories of a root as include dirs
-function(nitro_include_all_subdirs target root)
-  if(NOT IS_DIRECTORY "${root}")
-    message(WARNING "Include root not found: ${root}")
-    return()
-  endif()
-  file(GLOB _children LIST_DIRECTORIES TRUE "${root}/*")
-  set(_dirs "${root}") # also include the root itself
-  foreach(_child IN LISTS _children)
-    if(IS_DIRECTORY "${_child}")
-      list(APPEND _dirs "${_child}")
-    endif()
-  endforeach()
-  if(_dirs)
-    # Deduplicate
-    list(REMOVE_DUPLICATES _dirs)
-    target_include_directories(${target} PRIVATE ${_dirs})
-  endif()
-endfunction()
-
-# Add all Pod Public header folders and all react-native folders
-set(PODS_PUBLIC_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../example/ios/Pods/Headers/Public")
+set(NITRO_MODULES_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../node_modules/react-native-nitro-modules")
 set(RN_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../node_modules/react-native")
 
-nitro_include_all_subdirs(computed_tests "${PODS_PUBLIC_ROOT}")
-nitro_include_all_subdirs(computed_tests "${RN_ROOT}")
+# Stage NitroModules headers flat, mirroring the CocoaPods header layout that
+# <NitroModules/X.hpp> includes expect
+set(STAGED_INCLUDES "${CMAKE_CURRENT_BINARY_DIR}/staged-includes")
+file(MAKE_DIRECTORY "${STAGED_INCLUDES}/NitroModules")
+file(GLOB_RECURSE NITRO_HEADERS "${NITRO_MODULES_ROOT}/cpp/*.hpp")
+foreach(header ${NITRO_HEADERS})
+  configure_file(${header} "${STAGED_INCLUDES}/NitroModules/" COPYONLY)
+endforeach()
 
-# Link interface target from doctest to propagate include dirs/definitions
-target_link_libraries(computed_tests PRIVATE doctest::doctest)
+add_executable(
+  css_tests
+  computed_tests.cpp
+  style_resolver_tests.cpp
+  ../StyleResolver.cpp
+  ../StyleFunction.cpp
+  ../Animations.cpp
+  ../VariableContext.cpp
+  ../Rules.cpp
+  ../Environment.cpp
+  ../PseudoClasses.cpp
+  ../ContainerContext.cpp
+  ${RN_ROOT}/ReactCommon/jsi/jsi/jsi.cpp
+  ${NITRO_MODULES_ROOT}/cpp/core/AnyMap.cpp
+)
 
-# Recommended: enable warnings for the test build
-target_compile_options(computed_tests PRIVATE -Wall -Wextra -Wpedantic)
+# Repo headers (../) and NitroModules headers (<NitroModules/AnyMap.hpp>)
+target_include_directories(css_tests PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/..
+  ${STAGED_INCLUDES}
+  ${CMAKE_CURRENT_LIST_DIR}/../../nitrogen/generated/shared/c++
+  ${RN_ROOT}/ReactCommon/jsi
+)
 
-# No special compile definitions needed; tests use the RN/Folly-free base manager
+# Quoted includes inside NitroModules .cpp files resolve against their own
+# subdirectories (core/, utils/, ...) — add each as an include dir
+file(GLOB _nitro_dirs LIST_DIRECTORIES TRUE "${NITRO_MODULES_ROOT}/cpp/*")
+foreach(dir ${_nitro_dirs})
+  if(IS_DIRECTORY "${dir}")
+    target_include_directories(css_tests PRIVATE "${dir}")
+  endif()
+endforeach()
+
+target_link_libraries(css_tests PRIVATE doctest::doctest)
+
+target_compile_options(css_tests PRIVATE -Wall -Wextra -Wpedantic)

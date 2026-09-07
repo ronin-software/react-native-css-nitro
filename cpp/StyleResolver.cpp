@@ -51,6 +51,11 @@ namespace margelo::nitro::cssnitro {
 
         auto anyMap = AnyMap::make(inputMap.size());
 
+        // Transform props are aggregated across the loop and written once,
+        // because AnyMap::setArray uses emplace and silently no-ops on
+        // an existing key
+        AnyArray transformArray;
+
         for (const auto &kv: inputMap) {
             // Handle animationName property only if processAnimations is true
             if (processAnimations && kv.first == "animationName") {
@@ -89,13 +94,6 @@ namespace margelo::nitro::cssnitro {
 
             // Handle transform properties
             if (transformProps.count(kv.first) > 0) {
-                AnyArray transformArray;
-
-                // Get existing transform array if it exists
-                if (anyMap->contains("transform")) {
-                    transformArray = anyMap->getArray("transform");
-                }
-
                 // Find the value in the array with the key matching kv.first and set it to kv.second
                 bool foundTransform = false;
                 for (size_t i = 0; i < transformArray.size(); i++) {
@@ -116,13 +114,15 @@ namespace margelo::nitro::cssnitro {
                     transformObj[kv.first] = kv.second;
                     transformArray.emplace_back(transformObj);
                 }
-
-                anyMap->setArray("transform", transformArray);
                 continue;
             }
 
             // For all other properties, just pass through as-is
             anyMap->setAny(kv.first, kv.second);
+        }
+
+        if (!transformArray.empty()) {
+            anyMap->setArray("transform", transformArray);
         }
 
         return anyMap;

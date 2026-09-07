@@ -53,6 +53,7 @@
     "prepare": "bob build",
     "build": "bob build",
     "nitrogen": "nitrogen",
+    "test:native": "bash scripts/test-native.sh",
     "release": "release-it --only-version"
   },
   "keywords": [

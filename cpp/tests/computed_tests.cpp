@@ -9,9 +9,9 @@
 #include "../Effect.hpp"
 #include "../Observable.hpp"
 
-using nitro::Computed;
-using nitro::Effect;
-using nitro::Observable;
+using reactnativecss::Computed;
+using reactnativecss::Effect;
+using reactnativecss::Observable;
 
 TEST_CASE("computed sum updates from sources") {
   auto a = Observable<int>::create(1);
