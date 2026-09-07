@@ -91,6 +91,28 @@ Findings from device verification:
 - Nitrogen generated TRUE/FALSE enum names colliding with ObjC macros —
   attribute-query wire values renamed to present/absent.
 
+## NativeWind integration map
+
+NativeWind v5 preview (nativewind@5.0.0-preview.4, branch `v5`) peer-depends
+on `react-native-css: ^3.0.1` — the JS runtime, not this port. Its own source
+is thin: it re-exports the runtime API. NativeWind consumes:
+
+- root: `styled`, `useCssElement`, `useUnstableNativeVariable`, `vars`,
+  `VariableContextProvider`
+- `react-native-css/components` (className-aware View/Text/…)
+- `react-native-css/metro` (withReactNativeCSS), `./babel`,
+  `./style-collection`, `./compiler`, `./jest`
+
+To run NativeWind v5 against this C++ runtime we must implement that surface
+as an adapter — it is exactly the "3rd party hook" checklist item. The parked
+blocked test suites (vars/variables/selectors/units/keywords) are that
+surface's tests, and the published react-native-css 3.0.0-preview.1 package
+is the reference implementation to port.
+
+Baseline e2e (NativeWind v5 preview on the upstream JS runtime) is ready to
+run: the v5 branch example app installs cleanly (expo canary, RN 0.80.1) and
+can be verified with the same Maestro/agent-device harness.
+
 ## Next steps
 
 1. Port remaining upstream suites: animations, transitions, calc, box-shadow,
