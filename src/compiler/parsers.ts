@@ -374,6 +374,11 @@ export function unparsed<
         case "sepia": {
           const args = parseTokens(tokenOrValue.value.arguments, b, allowAuto);
           if (args === undefined) {
+            // zero-arg functions (fontScale(), pixelScale(), …) parse to
+            // undefined because there are no tokens — emit them directly
+            if (tokenOrValue.value.arguments.length === 0) {
+              return ["fn", toRNProperty(tokenOrValue.value.name)];
+            }
             return;
           }
 

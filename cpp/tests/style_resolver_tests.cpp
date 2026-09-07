@@ -4,12 +4,22 @@
 
 #include "../StyleResolver.hpp"
 #include "../VariableContext.hpp"
+#include "../Environment.hpp"
 
 using namespace margelo::nitro;
 using namespace margelo::nitro::cssnitro;
 using reactnativecss::Effect;
 
 namespace {
+
+    // Root/universal variables are stored as [{v: value, m?: media}] arrays
+    AnyValue rootVar(double value) {
+        return AnyValue(AnyArray{AnyObject{{"v", AnyValue(value)}}});
+    }
+
+    AnyValue rootVar(const std::string &value) {
+        return AnyValue(AnyArray{AnyObject{{"v", AnyValue(value)}}});
+    }
 
     // Variable resolution touches real observables, which subscribe through
     // the Effect — so tests need a live Effect, not a null pointer
@@ -212,6 +222,134 @@ TEST_CASE("divide") {
     AnyArray zero = {"fn", "divide", AnyValue(10.0), AnyValue(0.0)};
     CHECK(std::holds_alternative<std::monostate>(
             StyleResolver::resolveStyle(AnyValue(std::move(zero)), "", get)));
+}
+
+// –
+// Marker tuples: [{}, kind, ...args] — var() references and relative units
+// –
+
+TEST_CASE("marker var tuple resolves from the variable context") {
+    auto get = makeGet();
+
+    VariableContext::setTopLevelVariable("root", "--brand", rootVar("#f00"));
+
+    AnyArray varTuple = {AnyObject {}, AnyValue(std::string("var")),
+                         AnyValue(std::string("--brand"))};
+    AnyValue resolved = StyleResolver::resolveStyle(AnyValue(std::move(varTuple)), "root", get);
+
+    CHECK(std::get<std::string>(resolved) == "#f00");
+}
+
+TEST_CASE("rem resolves against the __rn-css-rem root variable") {
+    auto get = makeGet();
+
+    VariableContext::setTopLevelVariable("root", "__rn-css-rem", rootVar(14.0));
+
+    AnyArray remTuple = {AnyObject {}, AnyValue(std::string("rem")), AnyValue(2.0)};
+    AnyValue resolved = StyleResolver::resolveStyle(AnyValue(std::move(remTuple)), "root", get);
+
+    CHECK(std::get<double>(resolved) == 28.0);
+}
+
+TEST_CASE("em prefers __rn-css-em and falls back to rem") {
+    auto get = makeGet();
+
+    VariableContext::setTopLevelVariable("root", "__rn-css-rem", rootVar(14.0));
+
+    AnyArray emTuple = {AnyObject {}, AnyValue(std::string("em")), AnyValue(2.0)};
+    CHECK(std::get<double>(StyleResolver::resolveStyle(AnyValue(emTuple), "root", get)) == 28.0);
+
+    VariableContext::setTopLevelVariable("root", "__rn-css-em", rootVar(10.0));
+    CHECK(std::get<double>(StyleResolver::resolveStyle(AnyValue(emTuple), "root", get)) == 20.0);
+}
+
+TEST_CASE("em resolves the line-height array-wrapped variant") {
+    auto get = makeGet();
+
+    // Note: earlier test cases may have set __rn-css-em, so pin it here
+    VariableContext::setTopLevelVariable("root", "__rn-css-em", rootVar(14.0));
+
+    // line-height: 2 emits [{}, "em", [2], 1]
+    AnyArray lhTuple = {AnyObject {}, AnyValue(std::string("em")),
+                        AnyValue(AnyArray{AnyValue(2.0)}), AnyValue(1.0)};
+    AnyValue resolved = StyleResolver::resolveStyle(AnyValue(std::move(lhTuple)), "root", get);
+
+    CHECK(std::get<double>(resolved) == 28.0);
+}
+
+TEST_CASE("vw/vh resolve against window dimensions reactively") {
+    auto get = makeGet();
+
+    reactnativecss::env::setWindowDimensions(400, 800, 2.0, 1.0);
+
+    AnyArray vwTuple = {AnyObject {}, AnyValue(std::string("vw")), AnyValue(50.0),
+                        AnyValue(1.0)};
+    CHECK(std::get<double>(StyleResolver::resolveStyle(AnyValue(vwTuple), "root", get)) == 200.0);
+
+    AnyArray vhTuple = {AnyObject {}, AnyValue(std::string("vh")), AnyValue(100.0),
+                        AnyValue(1.0)};
+    CHECK(std::get<double>(StyleResolver::resolveStyle(AnyValue(vhTuple), "root", get)) == 800.0);
+}
+
+TEST_CASE("unknown marker tuples pass through untouched") {
+    auto get = makeGet();
+
+    // animation timing steps() — not resolvable here
+    AnyArray stepsTuple = {AnyObject {}, AnyValue(std::string("steps")),
+                           AnyValue(AnyArray{AnyValue(3.0)})};
+    AnyValue resolved = StyleResolver::resolveStyle(AnyValue(std::move(stepsTuple)), "root", get);
+
+    REQUIRE(std::holds_alternative<AnyArray>(resolved));
+    CHECK(std::get<AnyArray>(resolved).size() == 3);
+}
+
+// –
+// Platform/display functions
+// –
+
+TEST_CASE("pixelScale, fontScale and hairlineWidth read the environment") {
+    auto get = makeGet();
+
+    reactnativecss::env::setWindowDimensions(400, 800, 2.0, 1.5);
+
+    AnyArray scale = {"fn", "pixelScale"};
+    CHECK(std::get<double>(StyleResolver::resolveStyle(AnyValue(std::move(scale)), "", get)) ==
+          2.0);
+
+    AnyArray fontScale = {"fn", "fontScale"};
+    CHECK(std::get<double>(StyleResolver::resolveStyle(AnyValue(std::move(fontScale)), "", get)) ==
+          1.5);
+
+    AnyArray hairline = {"fn", "hairlineWidth"};
+    CHECK(std::get<double>(StyleResolver::resolveStyle(AnyValue(std::move(hairline)), "", get)) ==
+          0.5);
+}
+
+TEST_CASE("list-wrapped fn values are unwrapped before resolution") {
+    auto get = makeGet();
+
+    reactnativecss::env::setWindowDimensions(400, 800, 2.0, 1.0);
+
+    // declarations store single fn values as [["fn", ...]]
+    AnyArray wrapped = {AnyValue(AnyArray{"fn", "hairlineWidth"})};
+    AnyValue resolved = StyleResolver::resolveStyle(AnyValue(std::move(wrapped)), "", get);
+
+    CHECK(std::get<double>(resolved) == 0.5);
+}
+
+TEST_CASE("getPixelSizeForLayoutSize and roundToNearestPixel use the scale") {
+    auto get = makeGet();
+
+    reactnativecss::env::setWindowDimensions(400, 800, 2.0, 1.0);
+
+    AnyArray size = {"fn", "getPixelSizeForLayoutSize", AnyValue(10.0)};
+    CHECK(std::get<double>(StyleResolver::resolveStyle(AnyValue(std::move(size)), "", get)) ==
+          20.0);
+
+    // roundToNearestPixel(10.4) at scale 2 → 10.5 (10.4 * 2 = 20.8 → 21 → 10.5)
+    AnyArray rounded = {"fn", "roundToNearestPixel", AnyValue(10.4)};
+    CHECK(std::get<double>(StyleResolver::resolveStyle(AnyValue(std::move(rounded)), "", get)) ==
+          10.5);
 }
 
 TEST_CASE("applyStyleMapping aggregates transform props into a transform array") {

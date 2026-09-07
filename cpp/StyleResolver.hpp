@@ -53,6 +53,27 @@ namespace margelo::nitro::cssnitro {
                 typename reactnativecss::Effect::GetProxy &get,
                 bool processAnimations = true
         );
+
+    private:
+        /**
+         * Resolve a compiler marker tuple: [{}, "var", name, fallback?] or
+         * [{}, unit, value, flag?] with unit in vw/vh/em/rem
+         */
+        static AnyValue resolveMarkerTuple(
+                const AnyArray &arr,
+                const std::string &variableScope,
+                typename reactnativecss::Effect::GetProxy &get
+        );
+
+        /** Resolve a relative unit (vw/vh/em/rem) to a pixel value */
+        static AnyValue resolveUnit(
+                const std::string &unit,
+                const AnyValue &valueArg,
+                const std::string &variableScope,
+                typename reactnativecss::Effect::GetProxy &get
+        );
+
+        static double round2(double v);
     };
 
 } // namespace margelo::nitro::cssnitro

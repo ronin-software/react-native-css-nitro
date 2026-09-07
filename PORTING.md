@@ -43,8 +43,20 @@ tests). Verification is layered:
     (`["fn", "calc", ...args]`), calc was double-wrapped (both `calcArguments`
     and `length()` wrapped), and calc-with-var declarations were dropped
     entirely.
-  - Remaining gap: unit tuples (`[{}, "vw", v, 1]`, em, …) are emitted but not
-    resolved by any runtime layer yet — declarations using them still drop.
+  - Remaining gap: exotic units (in/cm/pt/ch/…, container query units) are
+    dropped at compile time with upstream parity. Safe-area units (env()) are
+    a separate checklist item.
+- Platform/display functions resolved in C++: hairlineWidth, pixelScale,
+  fontScale, getPixelSizeForLayoutSize, roundToNearestPixel (env scale/fontScale
+  observables). The compiler now also emits zero-arg fns (fontScale() was
+  dropped). `platformSelect`/`pixelScaleSelect` are dead code upstream (a
+  theme-helper string with no runtime resolver) and remain unsupported.
+- Root variables flow: `addStyleSheet` now registers the stylesheet's `vr`
+  (root vars) and `r` (rem base) fields; variables use the
+  `[{v: value, m?: media}]` encoding, and the JS layer seeds `__rn-css-rem`
+  with the upstream default (14).
+- The compiler wraps single function values in a one-element list
+  (`[["fn", ...]]`); `StyleResolver::resolveStyle` unwraps before resolving.
 - The native test target must stay free of `react/renderer` and folly — only
   `ShadowTreeUpdateManager` pulls those in, and it is excluded from the
   doctest binary (exercised on-device instead).

@@ -15,6 +15,10 @@ export const StyleRegistry = NitroModules.createHybridObject<
 
 const { width, height, scale, fontScale } = Dimensions.get("window");
 StyleRegistry.setWindowDimensions(width, height, scale, fontScale);
+
+// Default rem base, matching upstream's root.ts. Stylesheets can override
+// via the `r` field. Variables are [{v: value, m?: media}] arrays.
+StyleRegistry.setRootVariables({ "__rn-css-rem": [{ v: 14 }] });
 Dimensions.addEventListener("change", ({ window }) => {
   StyleRegistry.setWindowDimensions(
     window.width,

@@ -5,6 +5,9 @@
 #include "StyleResolver.hpp"
 #include "StyleFunction.hpp"
 #include "Animations.hpp"
+#include "Environment.hpp"
+#include "VariableContext.hpp"
+#include <cmath>
 #include <variant>
 #include <unordered_set>
 
@@ -21,7 +24,7 @@ namespace margelo::nitro::cssnitro {
         if (std::holds_alternative<AnyArray>(value)) {
             const auto &arr = std::get<AnyArray>(value);
 
-            // Check if array has at least one element and first element is "fn"
+            // ["fn", name, ...args] — math/var functions
             if (!arr.empty() &&
                 std::holds_alternative<std::string>(arr[0]) &&
                 std::get<std::string>(arr[0]) == "fn") {
@@ -29,10 +32,112 @@ namespace margelo::nitro::cssnitro {
                 // Resolve the function
                 return StyleFunction::resolveStyleFn(arr, get, variableScope);
             }
+
+            // [{}, kind, ...args] — marker tuples emitted by the compiler for
+            // var() references (e.g. currentcolor) and relative units.
+            // Unknown markers (e.g. animation "steps") pass through untouched.
+            if (arr.size() >= 3 &&
+                std::holds_alternative<AnyObject>(arr[0]) &&
+                std::holds_alternative<std::string>(arr[1])) {
+                const std::string &kind = std::get<std::string>(arr[1]);
+                if (kind == "var" || kind == "vw" || kind == "vh" ||
+                    kind == "em" || kind == "rem") {
+                    return resolveMarkerTuple(arr, variableScope, get);
+                }
+            }
+
+            // The compiler wraps single function/marker values in a one-element
+            // list (e.g. [["fn", "hairlineWidth"]]) — unwrap and resolve
+            if (arr.size() == 1 && std::holds_alternative<AnyArray>(arr[0])) {
+                const auto &inner = std::get<AnyArray>(arr[0]);
+                bool isFn = !inner.empty() &&
+                            std::holds_alternative<std::string>(inner[0]) &&
+                            std::get<std::string>(inner[0]) == "fn";
+                bool isMarker = inner.size() >= 3 &&
+                                std::holds_alternative<AnyObject>(inner[0]) &&
+                                std::holds_alternative<std::string>(inner[1]);
+                if (isFn || isMarker) {
+                    return resolveStyle(arr[0], variableScope, get);
+                }
+            }
         }
 
         // Otherwise return the value as-is
         return value;
+    }
+
+    AnyValue StyleResolver::resolveMarkerTuple(
+            const AnyArray &arr,
+            const std::string &variableScope,
+            typename reactnativecss::Effect::GetProxy &get
+    ) {
+        const std::string &kind = std::get<std::string>(arr[1]);
+
+        // [{}, "var", name, fallback?]
+        if (kind == "var") {
+            if (!std::holds_alternative<std::string>(arr[2])) {
+                return AnyValue();
+            }
+            const std::string &name = std::get<std::string>(arr[2]);
+            AnyValue fallback;
+            if (arr.size() >= 4) {
+                fallback = arr[3];
+            }
+            return StyleFunction::resolveVar(name, fallback, get, variableScope);
+        }
+
+        // Relative units: [{}, unit, value, flag?]
+        return resolveUnit(kind, arr[2], variableScope, get);
+    }
+
+    AnyValue StyleResolver::resolveUnit(
+            const std::string &unit,
+            const AnyValue &valueArg,
+            const std::string &variableScope,
+            typename reactnativecss::Effect::GetProxy &get
+    ) {
+        // The value is a number; line-height emits it wrapped in an array
+        double value = 0;
+        if (std::holds_alternative<double>(valueArg)) {
+            value = std::get<double>(valueArg);
+        } else if (std::holds_alternative<AnyArray>(valueArg) &&
+                   std::get<AnyArray>(valueArg).size() == 1 &&
+                   std::holds_alternative<double>(std::get<AnyArray>(valueArg)[0])) {
+            value = std::get<double>(std::get<AnyArray>(valueArg)[0]);
+        } else {
+            return AnyValue();
+        }
+
+        double result = 0;
+
+        if (unit == "vw") {
+            result = get(reactnativecss::env::windowWidth()) * (value / 100);
+        } else if (unit == "vh") {
+            result = get(reactnativecss::env::windowHeight()) * (value / 100);
+        } else {
+            // em falls back to rem, matching upstream
+            std::string varName = "__rn-css-" + unit;
+            if (unit == "em") {
+                auto em = VariableContext::getVariable(variableScope, "__rn-css-em", get);
+                if (em.has_value() && std::holds_alternative<double>(em.value())) {
+                    result = value * std::get<double>(em.value());
+                    return AnyValue(round2(result));
+                }
+                varName = "__rn-css-rem";
+            }
+            auto rem = VariableContext::getVariable(variableScope, varName, get);
+            if (rem.has_value() && std::holds_alternative<double>(rem.value())) {
+                result = value * std::get<double>(rem.value());
+            } else {
+                return AnyValue();
+            }
+        }
+
+        return AnyValue(round2(result));
+    }
+
+    double StyleResolver::round2(double v) {
+        return std::round((v + 1e-9) * 100) / 100;
     }
 
     std::shared_ptr<AnyMap> StyleResolver::applyStyleMapping(

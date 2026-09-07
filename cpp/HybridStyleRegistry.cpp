@@ -66,6 +66,18 @@ namespace margelo::nitro::cssnitro {
     void HybridStyleRegistry::addStyleSheet(const HybridStyleSheet &stylesheet) {
         // Create an Effect batch to process all style updates together
         reactnativecss::Effect::batch([this, &stylesheet]() {
+            // Root variables, including the rem base the relative units use.
+            // Variables are stored as [{v: value, m?: mediaQuery}] arrays.
+            if (stylesheet.r.has_value()) {
+                AnyArray items = {AnyObject {{"v", AnyValue(stylesheet.r.value())}}};
+                VariableContext::setTopLevelVariable("root", "__rn-css-rem", AnyValue(std::move(items)));
+            }
+            if (stylesheet.vr.has_value()) {
+                for (const auto &entry: stylesheet.vr.value()->getMap()) {
+                    VariableContext::setTopLevelVariable("root", entry.first, entry.second);
+                }
+            }
+
             // If the key "s" exists, loop over every entry
             if (stylesheet.s.has_value()) {
                 const auto &stylesMap = stylesheet.s.value();

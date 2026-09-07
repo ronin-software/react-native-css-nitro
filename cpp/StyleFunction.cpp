@@ -4,6 +4,7 @@
 
 #include "StyleFunction.hpp"
 #include "VariableContext.hpp"
+#include "Environment.hpp"
 #include <NitroModules/AnyMap.hpp>
 
 #include <cmath>
@@ -30,6 +31,10 @@ namespace margelo::nitro::cssnitro {
 
         double round4(double v) {
             return std::round((v + 1e-9) * 10000) / 10000;
+        }
+
+        double round2(double v) {
+            return std::round((v + 1e-9) * 100) / 100;
         }
 
         std::optional<Value> parse(const AnyValue &v) {
@@ -71,6 +76,17 @@ namespace margelo::nitro::cssnitro {
     namespace {
 
         using calc::Value;
+
+        // Resolve a single fn argument that may itself be a var() or nested fn
+        AnyValue resolveStyleValueArg(const AnyValue &value,
+                                      reactnativecss::Effect::GetProxy &get,
+                                      const std::string &variableScope) {
+            if (std::holds_alternative<AnyArray>(value)) {
+                return StyleFunction::resolveStyleFn(std::get<AnyArray>(value), get,
+                                                     variableScope);
+            }
+            return value;
+        }
 
         std::optional<Value> calcArg(const AnyValue &v,
                                      reactnativecss::Effect::GetProxy &get,
@@ -151,7 +167,7 @@ namespace margelo::nitro::cssnitro {
             typename reactnativecss::Effect::GetProxy &get,
             const std::string &variableScope
     ) {
-        if (fnArgs.size() < 3 ||
+        if (fnArgs.size() < 2 ||
             !std::holds_alternative<std::string>(fnArgs[0]) ||
             std::get<std::string>(fnArgs[0]) != "fn" ||
             !std::holds_alternative<std::string>(fnArgs[1])) {
@@ -162,7 +178,7 @@ namespace margelo::nitro::cssnitro {
 
         // var: ["fn", "var", name, fallback?]
         if (name == "var") {
-            if (!std::holds_alternative<std::string>(fnArgs[2])) {
+            if (fnArgs.size() < 3 || !std::holds_alternative<std::string>(fnArgs[2])) {
                 return AnyValue();
             }
             const std::string &varName = std::get<std::string>(fnArgs[2]);
@@ -184,6 +200,37 @@ namespace margelo::nitro::cssnitro {
                 return resolveStyleFn(std::get<AnyArray>(value), get, variableScope);
             }
             return value;
+        }
+
+        // Platform/display metrics, mirroring upstream's runtime resolvers
+        // (hairlineWidth ≈ StyleSheet.hairlineWidth, pixelScale ≈ PixelRatio.get())
+        if (name == "hairlineWidth" && fnArgs.size() >= 2) {
+            double scale = get(reactnativecss::env::windowScale());
+            return AnyValue(scale > 0 ? calc::round2(1 / scale) : 1.0);
+        }
+        if (name == "pixelScale" && fnArgs.size() >= 2) {
+            return AnyValue(get(reactnativecss::env::windowScale()));
+        }
+        if (name == "fontScale" && fnArgs.size() >= 2) {
+            return AnyValue(get(reactnativecss::env::windowFontScale()));
+        }
+        if (name == "getPixelSizeForLayoutSize" && fnArgs.size() == 3) {
+            auto size = calc::parse(resolveStyleValueArg(fnArgs[2], get, variableScope));
+            if (size.has_value() && !size->isPercent) {
+                return AnyValue(calc::round2(size->value * get(reactnativecss::env::windowScale())));
+            }
+            return AnyValue();
+        }
+        if (name == "roundToNearestPixel" && fnArgs.size() == 3) {
+            auto size = calc::parse(resolveStyleValueArg(fnArgs[2], get, variableScope));
+            if (size.has_value() && !size->isPercent) {
+                double scale = get(reactnativecss::env::windowScale());
+                if (scale <= 0) {
+                    return AnyValue();
+                }
+                return AnyValue(calc::round2(std::round(size->value * scale) / scale));
+            }
+            return AnyValue();
         }
 
         std::optional<Value> result;
