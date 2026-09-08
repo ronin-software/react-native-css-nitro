@@ -330,13 +330,14 @@ export class CompilerStyleSheet {
       }
     }
 
-    if (this.mediaStack.length > 0) {
-      const media = this.mediaStack.flat();
-      if (media.length === 1) {
-        rule.mq = media[0];
-      } else {
-        rule.mq = { and: media };
-      }
+    const media = [
+      ...this.mediaStack.flat(),
+      ...(selector.type === "className" ? (selector.mediaQuery ?? []) : []),
+    ];
+    if (media.length === 1) {
+      rule.mq = media[0];
+    } else if (media.length > 0) {
+      rule.mq = { and: media };
     }
 
     if (options?.important) {

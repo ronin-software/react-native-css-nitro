@@ -61,6 +61,12 @@ export class SelectorParser {
   private parseSelector(selector: Selector): NormalizedSelector | null {
     // Handle :is() and :where() pseudo-classes
     if (this.isIsPseudoClass(selector) || this.isWherePseudoClass(selector)) {
+      // Dark-mode class: `<sel>:is(.dark *)` — the dark class lives on the
+      // app root, so compile to a color-scheme condition on <sel> (upstream
+      // design, commented out in their selectors.ts)
+      if (this.options.darkMode && this.isDarkAncestorIs(selector)) {
+        return this.parseDarkDescendant(selector);
+      }
       const results = this.parse(selector[0].selectors);
       return results[0] ?? null;
     }
@@ -73,6 +79,66 @@ export class SelectorParser {
 
     // Handle class-based selectors
     return this.parseClassSelector(selector);
+  }
+
+  /** Matches `:is(.dark *)` where dark is the configured dark-mode class */
+  private isDarkAncestorIsList(selectors: Selector[]): boolean {
+    if (selectors.length !== 1) {
+      return false;
+    }
+    // Strip combinators — `.dark *` inside :is() carries a descendant
+    // combinator between the class and the universal
+    const components = (selectors[0] ?? []).filter(
+      (c) => c.type !== "combinator",
+    );
+    if (components.length !== 2) {
+      return false;
+    }
+    return (
+      components.some(
+        (c) => c.type === "class" && c.name === this.options.darkMode,
+      ) && components.some((c) => c.type === "universal")
+    );
+  }
+
+  private isDarkAncestorIs(selector: Selector): boolean {
+    const isComponent = selector.find(
+      (c) => c.type === "pseudo-class" && c.kind === "is",
+    );
+    if (!isComponent || isComponent.type !== "pseudo-class") {
+      return false;
+    }
+    const inner = isComponent.selectors;
+    if (!inner || inner.length !== 1) {
+      return false;
+    }
+    const components = inner[0];
+    if (!components) {
+      return false;
+    }
+    return (
+      components.length === 2 &&
+      components.some(
+        (c) => c.type === "class" && c.name === this.options.darkMode,
+      ) &&
+      components.some((c) => c.type === "universal")
+    );
+  }
+
+  /** Compiles `<sel>:is(.dark *)` → <sel> gated on prefers-color-scheme: dark */
+  private parseDarkDescendant(selector: Selector): NormalizedSelector | null {
+    const rest = selector.filter(
+      (c) => !(c.type === "pseudo-class" && c.kind === "is"),
+    );
+    const context = new SelectorContext();
+    context.setForcedMedia([{ "prefers-color-scheme": ["=", "dark"] }]);
+    for (const component of [...rest].reverse()) {
+      const result = this.processComponent(component, context);
+      if (result === "invalid") {
+        return null;
+      }
+    }
+    return context.toClassNameSelector();
   }
 
   private parseVariableSelector(selector: Selector): VariableSelector | null {
@@ -174,7 +240,12 @@ export class SelectorParser {
     component: Extract<SelectorComponent, { type: "class" }>,
     context: SelectorContext,
   ): "valid" | "invalid" {
-    if (!context.primaryClassName) {
+    if (component.name === this.options.darkMode && context.primaryClassName) {
+      // Dark-mode class as ancestor (`.dark .child`): the class lives on the
+      // app root, so gate the rule on the color-scheme condition instead of
+      // resolving a container
+      context.setForcedMedia([{ "prefers-color-scheme": ["=", "dark"] }]);
+    } else if (!context.primaryClassName) {
       context.setPrimaryClassName(component.name);
     } else if (context.isInClassBlock) {
       context.addAttributeQuery(["star", "className", component.name] as const);
@@ -210,6 +281,21 @@ export class SelectorParser {
       case "empty":
         context.addAttributeQuery(["absent", "children"] as const);
         return "valid";
+      case "is": {
+        // Dark-mode class: `<sel>:is(.dark *)` — the dark class lives on the
+        // app root, so gate the rule on the color-scheme condition instead
+        // of matching an ancestor (upstream design, left unimplemented there)
+        const isDark = this.options.darkMode &&
+          component.selectors?.length === 1 &&
+          this.isDarkAncestorIsList(component.selectors);
+        if (isDark) {
+          context.setForcedMedia([{
+            "prefers-color-scheme": ["=", "dark"],
+          } as unknown as AnyMap]);
+          return "valid";
+        }
+        return "invalid";
+      }
       default:
         return "invalid";
     }
@@ -385,6 +471,12 @@ class SelectorContext {
   private newBlock = false;
   private readonly specificity: SpecificityArray = [0, 0, 0, 0, 0];
   private mediaQuery?: AnyMap[];
+  /** Dark-mode class conditions compiled into a color-scheme media query */
+  private forcedMedia?: AnyMap[];
+
+  setForcedMedia(media: AnyMap[]) {
+    this.forcedMedia = media;
+  }
   private containerQuery?: HybridContainerQuery[];
   private attributeQuery?: AttributeQueryRule[];
   private pseudoClassesQuery?: PseudoClass;
@@ -442,7 +534,7 @@ class SelectorContext {
       type: "className",
       specificity: this.specificity,
       className: this.primaryClassName,
-      mediaQuery: this.mediaQuery,
+      mediaQuery: this.forcedMedia ?? this.mediaQuery,
       containerQuery: this.containerQuery,
       pseudoClassesQuery: this.pseudoClassesQuery,
       attributeQuery: this.attributeQuery,

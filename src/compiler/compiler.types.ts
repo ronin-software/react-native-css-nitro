@@ -13,6 +13,9 @@ export interface CompilerOptions {
   logger?: (message: string) => void | Debugger;
   hexColors?: boolean;
   colorPrecision?: number;
+  /** Dark-mode class name (e.g. "dark") — dark-class selectors compile to
+   * color-scheme conditions instead of ancestor matching */
+  darkMode?: string | null;
 }
 
 export type StyleRuleMapping = Record<string, string>;

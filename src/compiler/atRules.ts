@@ -1,4 +1,5 @@
 import type {
+  Declaration,
   DeclarationBlock,
   ParsedComponent,
   Rule,
@@ -34,12 +35,76 @@ export interface ReactNativeAtRule {
   };
 }
 
-export function maybeMutateReactNativeOptions(rule: Rule | ReactNativeAtRule) {
-  if (rule.type !== "custom" || rule.value?.name !== "react-native") {
+export function maybeMutateReactNativeOptions(
+  rule: Rule | ReactNativeAtRule,
+  options: { darkMode?: string | null },
+) {
+  if (rule.type !== "custom" && rule.type !== "unknown") {
+    return;
+  }
+  if (!rule.value) {
     return;
   }
 
-  // TODO: Add inline options
+  if (rule.type === "unknown" && rule.value.name === "cssInterop") {
+    // @cssInterop set darkMode class dark;
+    const idents = serializeTokens(rule.value.prelude).split(/\s+/);
+    if (
+      idents[0] === "set" &&
+      idents[1] === "darkMode" &&
+      idents[2] === "class"
+    ) {
+      options.darkMode = idents[3] || "dark";
+    }
+    return;
+  }
+
+  if (rule.type === "custom" && rule.value.name === "react-native") {
+    // @react-native { darkMode: dark; }
+    const body = rule.value.body as
+      | { type: "declaration-list"; value: { declarations?: Declaration[] } }
+      | undefined;
+    const declarations = body?.value.declarations ?? [];
+    for (const declaration of declarations) {
+      if ((declaration.property as string) === "darkMode") {
+        options.darkMode = serializeTokens(declaration.value) || "dark";
+      }
+    }
+    return;
+  }
+
+  if (rule.value.name === "cssInterop") {
+    // @cssInterop set darkMode class dark;
+    const idents = serializeTokens(rule.value.prelude).split(/\s+/);
+    if (
+      idents[0] === "set" &&
+      idents[1] === "darkMode" &&
+      idents[2] === "class"
+    ) {
+      options.darkMode = idents[3] || "dark";
+    }
+  }
+}
+
+/** Concatenates ident/string token values from a prelude or declaration */
+function serializeTokens(value: unknown): string {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    return value.map(serializeTokens).join(" ");
+  }
+  if ((value as { type?: string }).type === "token") {
+    const token = (value as { value: unknown }).value;
+    if (typeof token === "object" && token !== null && "value" in token) {
+      return String(token.value);
+    }
+    return "";
+  }
+  if ((value as { type?: string }).type === "repeated") {
+    const components = (value as { value: { components: unknown[] } }).value.components;
+    return components.map(serializeTokens).join(" ");
+  }
+  return "";
 }
 
 /***********************************************

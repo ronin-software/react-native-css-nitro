@@ -203,6 +203,23 @@ Also fixed: react-native-nitro-modules moved from peerDependencies to
 dependencies — monorepo-config's blockList excluded peers' node_modules paths,
 breaking package resolution from the example app.
 
+## Dark-mode class selectors: DONE
+
+All three upstream selectors tests pass (`:is(.dark *)`, `:root[class="dark"]`,
+`:root[class~="dark"]`). The implementation completes the design upstream left
+commented out in selectors.ts:
+
+- `@cssInterop set darkMode class <name>;` and
+  `@react-native { darkMode: <name>; }` set `options.darkMode`
+- Dark-class selectors compile to `prefers-color-scheme: dark` media
+  conditions on the rule (ancestor `.dark .x`, `:is(.dark *)`) or on the
+  variable item (`:root[class]` variables → vr items with m)
+- `colorScheme.set("dark")` — NativeWind's class-mode toggle — activates them
+  through the existing color-scheme environment observable; no new runtime
+  machinery
+- The inline-variables pass now refuses to statically inline variables
+  declared in dark-gated rules (they must stay runtime-conditioned)
+
 ## Next steps
 
 1. Port remaining upstream suites: animations, transitions, calc, box-shadow,

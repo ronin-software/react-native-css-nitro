@@ -68,7 +68,7 @@ export function compile(code: Buffer | string, options: CompilerOptions = {}) {
   logger(`Lightningcss second pass`);
   const visitor: Visitor<CustomAtRules> = {
     Rule(rule) {
-      maybeMutateReactNativeOptions(rule);
+      maybeMutateReactNativeOptions(rule, options);
       return rule;
     },
     StyleSheetExit(sheet) {

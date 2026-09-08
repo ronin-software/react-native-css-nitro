@@ -32,10 +32,50 @@ export function inlineVariablesWithSingleUsage(
    */
 
   const vars = new Map<string, UniqueVarInfo>();
+  // Variables declared inside conditional rules (:root[class~="dark"] etc.)
+  // change at runtime — they must survive to the stylesheet as conditioned
+  // items instead of being statically inlined
+  const conditionalVars = new Set<string>();
   const isLoggerEnabled =
     "enabled" in logger ? logger.enabled : Boolean(logger);
 
-  const firstPassVisitor: Visitor<CustomAtRules> = {};
+  const firstPassVisitor: Visitor<CustomAtRules> = {
+    Rule(rule) {
+      if (rule.type === "style") {
+        for (const selector of rule.value.selectors) {
+          // Only DARK-gated declarations are conditional — ordinary
+          // class-scoped variables must stay inlinable (tailwind hsl vars)
+          let conditional = false;
+          for (const component of selector) {
+            if (component.type === "class" && component.name === "dark") {
+              conditional = true;
+              break;
+            }
+            if (
+              component.type === "attribute" &&
+              component.name === "class" &&
+              component.operation?.value === "dark"
+            ) {
+              conditional = true;
+              break;
+            }
+          }
+          if (conditional) {
+            const block = rule.value.declarations;
+            for (const declaration of [
+              ...(block.declarations ?? []),
+              ...(block.importantDeclarations ?? []),
+            ]) {
+              if (declaration.property === "custom") {
+                conditionalVars.add(declaration.value.name);
+              }
+            }
+          }
+        }
+      }
+      return rule;
+    },
+  };
 
   if (options.inlineRem !== false) {
     firstPassVisitor.Length = (length) => {
@@ -51,13 +91,15 @@ export function inlineVariablesWithSingleUsage(
   }
 
   if (options.inlineVariables !== false) {
-    const exclusionList: string[] = options.inlineVariables?.exclude ?? [];
+    const excluded = new Set<string>(options.inlineVariables?.exclude ?? []);
 
     firstPassVisitor.Declaration = (decl) => {
       if (
         decl.property === "custom" &&
         decl.value.name.startsWith("--") &&
-        !exclusionList.includes(decl.value.name)
+        !excluded.has(decl.value.name) &&
+        // conditionalVars fills during traversal — check live
+        !conditionalVars.has(decl.value.name)
       ) {
         const entry = vars.get(decl.value.name) ?? {
           count: 0,
