@@ -257,8 +257,7 @@ Bugs this round shook out (all fixed, all test-verified):
 ## Next steps
 
 1. Port remaining upstream suites: animations, transitions, calc, box-shadow,
-   className-with-style, rightIsInline, filters (blocked on features), the
-   .ios-only files
+   className-with-style, rightIsInline, the .ios-only files
 2. Port the styled() HOC to un-skip the remaining specificity tests
 3. Wire ContainerContext::setScope — named containers AND group selectors
    compile to container queries but the scope hierarchy is never populated,
@@ -284,6 +283,17 @@ already pass.
 - New features this round: box-shadow (compile-time + runtime var pattern
   incl. inset/multi/transparent filtering), @property defaults interplay,
   em via __rn-css-em font-size variable, selectorPrefix type exemption
-- Remaining checklist feature work surfaced by tests: container/group scope
-  hierarchy (setScope unwired), transform functions in var() values,
-  safe-area env units, filters, styled() HOC, useNativeCss hook
+- Remaining checklist feature work surfaced by tests: transform functions in
+  var() values, styled() HOC, useNativeCss hook (container/group scope shipped
+  in 2d6f4d3; safe-area env() + filters shipped with SafeAreaProvider +
+  dropShadow runtime resolvers — see below)
+- **Safe-area env()**: compiler maps `env(safe-area-inset-*)` to
+  `var(react-native-css-safe-area-inset-*)`; `SafeAreaProvider`
+  (`src/components/SafeAreaProvider/`, .native + web passthrough) publishes
+  the insets from `react-native-safe-area-context` via VariableContextProvider.
+  Ported upstream test: `src/__tests__/native/env.test.tsx`.
+- **Filters**: compiler already parsed static drop-shadow; runtime resolvers
+  added for the var() case — dropShadow in both the jest double and
+  `StyleFunction.cpp` (flattened fn tuples, token lists, currentcolor →
+  PlatformColor via the seeded `__rn-css-color` root variable). Ported
+  upstream test: `src/__tests__/native/filters.test.tsx` (8/8).

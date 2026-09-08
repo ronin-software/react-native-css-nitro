@@ -299,6 +299,88 @@ namespace margelo::nitro::cssnitro {
             return AnyValue(std::move(shadows));
         }
 
+        // drop-shadow from runtime variables:
+        // ["fn", "dropShadow", <tokens>] where tokens are the
+        // whitespace-separated shadow parts (offsetX offsetY blur? color?).
+        // The compiler flattens nested fn tuples, so drop-shadow(var(--x))
+        // arrives as ["fn","dropShadow","fn","var","x"] — resolve through.
+        if (name == "dropShadow" && fnArgs.size() >= 3) {
+            AnyArray tokens;
+
+            for (size_t i = 2; i < fnArgs.size(); i++) {
+                // Compiler flattens nested fns — drop-shadow(var(--x)) arrives
+                // as ["fn","dropShadow","fn","var","x"]. Rebuild + resolve.
+                if (std::holds_alternative<std::string>(fnArgs[i]) &&
+                    std::get<std::string>(fnArgs[i]) == "fn" &&
+                    i + 2 < fnArgs.size() &&
+                    std::holds_alternative<std::string>(fnArgs[i + 1]) &&
+                    std::get<std::string>(fnArgs[i + 1]) == "var") {
+                    AnyArray varFn = {"fn", "var", fnArgs[i + 2]};
+                    AnyValue resolved = resolveStyleFn(varFn, get, variableScope);
+                    if (std::holds_alternative<AnyArray>(resolved)) {
+                        for (const auto &token: std::get<AnyArray>(resolved)) {
+                            tokens.push_back(token);
+                        }
+                    }
+                    i += 2;
+                    continue;
+                }
+
+                // A non-fn array is a raw token list (inlined variable value)
+                if (std::holds_alternative<AnyArray>(fnArgs[i])) {
+                    const auto &arr = std::get<AnyArray>(fnArgs[i]);
+                    bool isFn = !arr.empty() &&
+                                std::holds_alternative<std::string>(arr[0]) &&
+                                std::get<std::string>(arr[0]) == "fn";
+                    if (!isFn) {
+                        for (const auto &token: arr) {
+                            tokens.push_back(token);
+                        }
+                        continue;
+                    }
+                }
+
+                AnyValue resolved = resolveStyleValueArg(fnArgs[i], get, variableScope);
+                if (std::holds_alternative<AnyArray>(resolved)) {
+                    for (const auto &token: std::get<AnyArray>(resolved)) {
+                        AnyValue inner = resolveStyleValueArg(token, get, variableScope);
+                        if (!std::holds_alternative<std::monostate>(inner)) {
+                            tokens.push_back(std::move(inner));
+                        }
+                    }
+                } else if (!std::holds_alternative<std::monostate>(resolved)) {
+                    tokens.push_back(std::move(resolved));
+                }
+            }
+
+            std::vector<double> nums;
+            AnyValue color;
+            for (const auto &token: tokens) {
+                if (std::holds_alternative<double>(token)) {
+                    nums.push_back(std::get<double>(token));
+                } else if (std::holds_alternative<int64_t>(token)) {
+                    nums.push_back(static_cast<double>(std::get<int64_t>(token)));
+                } else {
+                    // color string or PlatformColor object
+                    color = token;
+                }
+            }
+
+            AnyObject dropShadow;
+            dropShadow["offsetX"] = AnyValue(nums.size() > 0 ? nums[0] : 0.0);
+            dropShadow["offsetY"] = AnyValue(nums.size() > 1 ? nums[1] : 0.0);
+            dropShadow["standardDeviation"] = AnyValue(nums.size() > 2 ? nums[2] : 0.0);
+            if (!std::holds_alternative<std::monostate>(color)) {
+                dropShadow["color"] = std::move(color);
+            }
+
+            AnyArray filter;
+            AnyObject wrapper;
+            wrapper["dropShadow"] = std::move(dropShadow);
+            filter.push_back(AnyValue(std::move(wrapper)));
+            return AnyValue(std::move(filter));
+        }
+
         // Platform/display metrics, mirroring upstream's runtime resolvers
         // (hairlineWidth ≈ StyleSheet.hairlineWidth, pixelScale ≈ PixelRatio.get())
         if (name == "hairlineWidth" && fnArgs.size() >= 2) {

@@ -14,8 +14,8 @@
  *   by the doctests
  */
 import type { AnyMap, ValueType } from "react-native-nitro-modules";
-import { testAttributeQuery } from "../native/attributeQuery";
 
+import { testAttributeQuery } from "../native/attributeQuery";
 import type {
   Declarations,
   HybridStyleRule,
@@ -39,7 +39,17 @@ function splitClassNames(classNames: string): string[] {
 
 export class ReferenceRegistry {
   private styleRuleMap = new Map<string, HybridStyleRule[]>();
-  private rootVariables: VariableMap = new Map();
+  private rootVariables: VariableMap = new Map([
+    // Upstream seeds the root color with the platform label color so
+    // currentcolor resolves before any author color is set
+    [
+      "__rn-css-color",
+      [
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        require("react-native").PlatformColor("label", "labelColor"),
+      ],
+    ],
+  ]);
   private universalVariables: VariableMap = new Map();
   private scopedVariables = new Map<string, VariableMap>();
   private keyframes = new Map<string, AnyValue>();
@@ -69,7 +79,14 @@ export class ReferenceRegistry {
   }
 
   /** Harness hook: partial window-dimension update */
-  setDimensions(partial: Partial<{ width: number; height: number; scale: number; fontScale: number }>): void {
+  setDimensions(
+    partial: Partial<{
+      width: number;
+      height: number;
+      scale: number;
+      fontScale: number;
+    }>,
+  ): void {
     this.window = { ...this.window, ...partial };
     // The C++ registry re-resolves via env observables; fan out manually
     this.notifyAll();
@@ -79,6 +96,11 @@ export class ReferenceRegistry {
   reset(): void {
     this.styleRuleMap.clear();
     this.rootVariables.clear();
+    // Re-seed the platform label color (upstream native-internal/root.ts)
+    this.rootVariables.set("__rn-css-color", [
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require("react-native").PlatformColor("label", "labelColor"),
+    ]);
     this.universalVariables.clear();
     this.scopedVariables.clear();
     this.keyframes.clear();
@@ -275,7 +297,14 @@ export class ReferenceRegistry {
         continue;
       }
       for (const rule of rules) {
-        if (this.testRule(rule, componentId, containerScope, validAttributeQueries)) {
+        if (
+          this.testRule(
+            rule,
+            componentId,
+            containerScope,
+            validAttributeQueries,
+          )
+        ) {
           allRules.push(rule);
         }
       }
@@ -497,7 +526,22 @@ export class ReferenceRegistry {
       for (const cq of rule.cq) {
         const pass = this.testContainerQuery(cq, containerScope);
         if (process.env.NW_TRACE) {
-          console.log('CQ test:', JSON.stringify(cq), 'scope:', containerScope, '→', pass, '| scopes:', JSON.stringify([...this.containerScopes.entries()].map(([k, v]) => [k, [...v.names], v.parent])));
+          console.log(
+            "CQ test:",
+            JSON.stringify(cq),
+            "scope:",
+            containerScope,
+            "→",
+            pass,
+            "| scopes:",
+            JSON.stringify(
+              [...this.containerScopes.entries()].map(([k, v]) => [
+                k,
+                [...v.names],
+                v.parent,
+              ]),
+            ),
+          );
         }
         if (!pass) {
           return false;
@@ -609,7 +653,7 @@ export class ReferenceRegistry {
 
     let logicOp = "and";
     let negate = false;
-    const op = mq["$$op"];
+    const op = mq.$$op;
     if (typeof op === "string") {
       logicOp = op;
       if (op === "not") {
@@ -678,9 +722,17 @@ export class ReferenceRegistry {
     let actual: number | undefined;
     if (key === "min-width" || key === "max-width" || key === "width") {
       actual = this.window.width;
-    } else if (key === "min-height" || key === "max-height" || key === "height") {
+    } else if (
+      key === "min-height" ||
+      key === "max-height" ||
+      key === "height"
+    ) {
       actual = this.window.height;
-    } else if (key === "resolution" || key === "min-resolution" || key === "max-resolution") {
+    } else if (
+      key === "resolution" ||
+      key === "min-resolution" ||
+      key === "max-resolution"
+    ) {
       // dppx == PixelRatio.get() == window scale
       actual = this.window.scale;
     } else {
@@ -721,7 +773,7 @@ export class ReferenceRegistry {
         continue;
       }
       const resolved = this.resolveValue(value, variableScope);
-      if (resolved === undefined) {
+      if (resolved === (undefined as unknown as AnyValue)) {
         continue;
       }
       // null (unset/cleared) keeps the key with an undefined value
@@ -737,8 +789,18 @@ export class ReferenceRegistry {
   /** Mirror of StyleResolver::applyStyleMapping's transform aggregation */
   private aggregateTransforms(style: Record<string, AnyValue>): void {
     const transformProps = new Set([
-      "translateX", "translateY", "translateZ", "rotate", "rotateX",
-      "rotateY", "rotateZ", "scaleX", "scaleY", "scaleZ", "skewX", "skewY",
+      "translateX",
+      "translateY",
+      "translateZ",
+      "rotate",
+      "rotateX",
+      "rotateY",
+      "rotateZ",
+      "scaleX",
+      "scaleY",
+      "scaleZ",
+      "skewX",
+      "skewY",
       "perspective",
     ]);
     const transform: Record<string, AnyValue>[] = [];
@@ -780,11 +842,7 @@ export class ReferenceRegistry {
         typeof kind === "string"
       ) {
         if (kind === "var") {
-          return this.resolveVar(
-            arg as string,
-            value[3],
-            variableScope,
-          );
+          return this.resolveVar(arg as string, value[3], variableScope);
         }
         if (kind === "vw" || kind === "vh" || kind === "em" || kind === "rem") {
           if (arg === undefined) {
@@ -826,6 +884,66 @@ export class ReferenceRegistry {
         return undefined as unknown as AnyValue;
       }
       return this.resolveVar(varName, args[1], variableScope);
+    }
+    if (name === "dropShadow") {
+      // ["fn", "dropShadow", <resolved var tokens>] — the var holds the
+      // whitespace-separated shadow tokens (offsetX offsetY blur? color?)
+      // Tailwind v4 emits filter: var(--tw-drop-shadow) with
+      // --tw-drop-shadow: drop-shadow(...) — nested dropShadow fn args pass
+      // through as the inner structure
+      // Resolve var() references inside the arguments first — the variable
+      // holds the whitespace-separated shadow tokens. The compiler flattens
+      // nested fn tuples, so drop-shadow(var(--x)) arrives as
+      // ["fn","dropShadow","fn","var","x"] — rebuild the var reference.
+      let resolvedArgs: AnyValue[] = args;
+      if (
+        args[0] === "fn" &&
+        args[1] === "var" &&
+        typeof args[2] === "string"
+      ) {
+        resolvedArgs = [
+          this.resolveValue(["fn", "var", args[2]], variableScope),
+        ];
+      }
+      const parts: AnyValue[] = resolvedArgs.map((arg) =>
+        this.resolveValue(arg, variableScope),
+      );
+
+      const tokens: AnyValue[] = parts.flatMap((p) => {
+        if (Array.isArray(p)) {
+          // Resolve nested marker tuples (currentcolor → PlatformColor)
+          return p.map((t) =>
+            Array.isArray(t) ? this.resolveValue(t, variableScope) : t,
+          );
+        }
+        if (typeof p === "object" && p !== null) {
+          // PlatformColor / resolved color object — a color token on its own
+          return [p];
+        }
+        return String(p).split(/\s+/).filter(Boolean);
+      });
+      // Tokens are space-separated: [offsetX, offsetY, blur?, color?]
+      // Color may come first. Lengths are px numbers, color is a string.
+      const nums: number[] = [];
+      let pendingColor = "";
+      let hasColor = false;
+      for (const token of tokens) {
+        if (typeof token === "number") {
+          nums.push(token);
+        } else if (typeof token === "object" && token !== null) {
+          // PlatformColor / resolved color object
+          pendingColor = token as unknown as string;
+          hasColor = true;
+        } else if (typeof token === "string" && token !== "inset") {
+          pendingColor = token;
+          hasColor = true;
+        }
+      }
+
+      const color = hasColor ? pendingColor : "#000000";
+      const [offsetX = 0, offsetY = 0, standardDeviation = 0] = nums;
+      // filter is a list of filter functions — keep the array shape
+      return [{ dropShadow: { offsetX, offsetY, standardDeviation, color } }];
     }
     if (name === "boxShadow" && args.length >= 1) {
       // ["fn", "boxShadow", parts...] — parts are (possibly nested) lists of
@@ -903,7 +1021,10 @@ export class ReferenceRegistry {
         const resolved = this.resolveValue(arg, variableScope);
         if (Array.isArray(resolved)) {
           parseParts(resolved, false);
-        } else if (resolved === undefined || resolved === null) {
+        } else if (
+          resolved === (undefined as unknown as AnyValue) ||
+          resolved === null
+        ) {
           parseParts(buffer, false);
           buffer = [];
         } else {
@@ -925,10 +1046,20 @@ export class ReferenceRegistry {
     variableScope: string,
   ): AnyValue {
     const value = this.getVariable(variableScope, name);
+    if (process.env.NW_TRACE && name === "__rn-css-color") {
+      console.log(
+        "RESOLVEVAR color scope:",
+        variableScope,
+        "→",
+        JSON.stringify(value),
+      );
+    }
     if (value !== undefined) {
       return value;
     }
-    return fallback === undefined ? (undefined as unknown as AnyValue) : this.resolveValue(fallback, variableScope);
+    return fallback === undefined
+      ? (undefined as unknown as AnyValue)
+      : this.resolveValue(fallback, variableScope);
   }
 
   /** Public read for useUnstableNativeVariable (no reactivity guarantees) */
@@ -946,8 +1077,16 @@ export class ReferenceRegistry {
     }
     // Variables may be [{v: value, m?: media}] item lists — the runtime picks
     // the first item whose media condition passes
-    if (Array.isArray(raw) && raw.every((item) => item !== null && typeof item === "object" && "v" in item)) {
-      for (const item of raw as { v: AnyValue; m?: Record<string, AnyValue> }[]) {
+    if (
+      Array.isArray(raw) &&
+      raw.every(
+        (item) => item !== null && typeof item === "object" && "v" in item,
+      )
+    ) {
+      for (const item of raw as {
+        v: AnyValue;
+        m?: Record<string, AnyValue>;
+      }[]) {
         if (item.m === undefined || this.testMedia(item.m)) {
           // declaration values compile as single-element lists — unwrap
           return Array.isArray(item.v) && item.v.length === 1

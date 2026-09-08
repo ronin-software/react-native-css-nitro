@@ -11519,6 +11519,7 @@ __metadata:
     react-native-builder-bob: ^0.40.13
     react-native-nitro-modules: ^0.29.1
     react-native-reanimated: ^4.1.3
+    react-native-safe-area-context: ^5
     react-native-worklets: ^0.6.1
     react-test-renderer: 19.1.0
     release-it: ^19.0.4
@@ -11582,6 +11583,16 @@ __metadata:
     react-native: "*"
     react-native-worklets: ">=0.5.0"
   checksum: 5f3b7298dd721b5da7f8bab64c557624d08b8715502f4ba2ff9118f31d852e3d9734ffbfaacd1302468ba68d4790689eead39605645a80f737802c8de0008064
+  languageName: node
+  linkType: hard
+
+"react-native-safe-area-context@npm:^5":
+  version: 5.9.1
+  resolution: "react-native-safe-area-context@npm:5.9.1"
+  peerDependencies:
+    react: "*"
+    react-native: "*"
+  checksum: ef708ab0b4480750552aa1947910bdfa26fd8e2864146342317e7713c00960c5da1d8dab72307f1e9da7dec3f7aff5c97d2eda349a1120dd3d14aa935331ae66
   languageName: node
   linkType: hard
 

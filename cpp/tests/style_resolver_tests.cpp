@@ -411,3 +411,56 @@ TEST_CASE("component-scope v-rules still resolve root-level vars") {
     // Resolves to the hex string, which downstream processColor handles
     CHECK(std::get<std::string>(resolved) == "#00c758");
 }
+
+// –
+// drop-shadow from runtime variables
+// –
+
+TEST_CASE("dropShadow resolves var holding whitespace-separated tokens") {
+    auto get = makeGet();
+
+    // tailwind pattern: --my-shadow: 0 4px 6px #000; filter: drop-shadow(var(--my-shadow))
+    VariableContext::setTopLevelVariable(
+        "root", "my-shadow",
+        AnyValue(AnyArray{AnyValue(AnyObject{
+            {"v", AnyValue(AnyArray{
+                AnyValue(0.0), AnyValue(4.0), AnyValue(6.0),
+                AnyValue(std::string("#000")),
+            })},
+        })}));
+
+    // Compiler flattens nested fns: ["fn","dropShadow","fn","var","my-shadow"]
+    AnyArray fnValue = {"fn", "dropShadow", AnyValue(std::string("fn")),
+                        AnyValue(std::string("var")), AnyValue(std::string("my-shadow"))};
+    AnyValue resolved = StyleResolver::resolveStyle(AnyValue(std::move(fnValue)), "", get);
+
+    fprintf(stderr, "DBG index=%zu\n", resolved.index());
+    auto filter = std::get<AnyArray>(resolved);
+    REQUIRE(filter.size() == 1);
+    fprintf(stderr, "DBG f0=%zu\n", filter[0].index());
+    auto shadow = std::get<AnyObject>(filter[0]);
+    fprintf(stderr, "DBG shadow keys=%zu\n", shadow.size());
+    auto innerV = shadow["dropShadow"];
+    fprintf(stderr, "DBG inner=%zu\n", innerV.index());
+    auto inner = std::get<AnyObject>(innerV);
+    CHECK(std::get<double>(inner["offsetX"]) == 0.0);
+    CHECK(std::get<double>(inner["offsetY"]) == 4.0);
+    CHECK(std::get<double>(inner["standardDeviation"]) == 6.0);
+    CHECK(std::get<std::string>(inner["color"]) == "#000");
+}
+
+TEST_CASE("dropShadow with missing blur defaults to 0 and omits color") {
+    auto get = makeGet();
+
+    AnyArray fnValue = {"fn", "dropShadow", AnyValue(AnyArray{
+        AnyValue(2.0), AnyValue(3.0),
+    })};
+    AnyValue resolved = StyleResolver::resolveStyle(AnyValue(std::move(fnValue)), "", get);
+
+    auto filter = std::get<AnyArray>(resolved);
+    auto inner = std::get<AnyObject>(std::get<AnyObject>(filter[0])["dropShadow"]);
+    CHECK(std::get<double>(inner["offsetX"]) == 2.0);
+    CHECK(std::get<double>(inner["offsetY"]) == 3.0);
+    CHECK(std::get<double>(inner["standardDeviation"]) == 0.0);
+    CHECK(inner.find("color") == inner.end());
+}
