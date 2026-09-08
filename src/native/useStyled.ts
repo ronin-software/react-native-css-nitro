@@ -206,6 +206,15 @@ export function useStyledProps(
       )
     : EMPTY_DECLARATIONS;
 
+  // Publish props for group-attribute evaluation (children resolve
+  // `.a.b .c`-style queries against their container's attributes)
+  (StyleRegistry as {
+    updateComponentAttributes?: (
+      id: string,
+      attrs: Record<string, unknown>,
+    ) => void;
+  }).updateComponentAttributes?.(componentId, originalProps);
+
   let validAttributeQueryIds = "";
 
   if (declarations.attributeQueries) {
@@ -261,25 +270,22 @@ export function useStyledProps(
     [componentId],
   );
 
-  if (declarations.active) {
-    p.onPress =
-      p.onPress ??
-      (() => {
-        return;
-      });
-    p.onPressIn = onPressIn(componentId, p);
-    p.onPressOut = onPressOut(componentId, p);
-  }
+  // Always wired: any component can be a group container referenced by
+  // children's rules (`.group/item:active .child`), so press/hover/focus
+  // state must be tracked even when the component has no pseudo rules itself
+  p.onPress =
+    p.onPress ??
+    (() => {
+      return;
+    });
+  p.onPressIn = onPressIn(componentId, p);
+  p.onPressOut = onPressOut(componentId, p);
 
-  if (declarations.hover) {
-    p.onHoverIn = onHoverIn(componentId, p);
-    p.onHoverOut = onHoverOut(componentId, p);
-  }
+  p.onHoverIn = onHoverIn(componentId, p);
+  p.onHoverOut = onHoverOut(componentId, p);
 
-  if (declarations.focus) {
-    p.onFocus = onFocus(componentId, p);
-    p.onBlur = onBlur(componentId, p);
-  }
+  p.onFocus = onFocus(componentId, p);
+  p.onBlur = onBlur(componentId, p);
 
   return {
     props: componentData.props,

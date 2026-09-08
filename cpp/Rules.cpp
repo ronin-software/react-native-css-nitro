@@ -1,3 +1,6 @@
+#include <sstream>
+#include <variant>
+
 #include "Rules.hpp"
 #include "Environment.hpp"
 #include "Helpers.hpp"
@@ -14,20 +17,30 @@ namespace margelo::nitro::cssnitro {
 
     bool Rules::testRule(const HybridStyleRule &rule, reactnativecss::Effect::GetProxy &get,
                          const std::string &componentId, const std::string &containerScope,
-                         const std::vector<std::string> &validAttributeQueries) {
-        // Check attribute queries (rule.aq)
+                         const std::vector<std::string> &validAttributeQueries,
+                         const ContainerAqEvaluator &containerAqEvaluator) {
+        // Check attribute queries (rule.aq). The query may describe the
+        // component's own attributes (validated JS-side and passed in via
+        // validAttributeQueries) or its group container's (`.a.b .c` → the
+        // child rule carries the container's query, evaluated here against
+        // the container's published attributes)
         if (rule.aq.has_value()) {
             if (!rule.id.has_value()) {
                 return false;
             }
 
-            // The rule ID is already a string, use it directly
             const std::string &ruleId = rule.id.value();
 
-            // Use std::find to search the vector
-            if (std::find(validAttributeQueries.begin(), validAttributeQueries.end(), ruleId) ==
-                validAttributeQueries.end()) {
-                return false;
+            const bool ownValid =
+                    std::find(validAttributeQueries.begin(), validAttributeQueries.end(),
+                              ruleId) != validAttributeQueries.end();
+            if (!ownValid) {
+                const bool isContainer = containerScope != componentId &&
+                                         containerScope != "root";
+                if (!isContainer || !containerAqEvaluator ||
+                    !containerAqEvaluator(rule.aq.value())) {
+                    return false;
+                }
             }
         }
 
@@ -560,5 +573,106 @@ namespace margelo::nitro::cssnitro {
         return false;
     }
 
-} // namespace margelo::nitro::cssnitro
+    bool Rules::testAttributeQuery(
+            const AttributeQuery &query,
+            const std::unordered_map<std::string, AnyValue> &props) {
+        using RuleVariant = std::variant<
+                std::tuple<AttrSelectorBooleanOperator, std::string>,
+                std::tuple<AttrSelectorOperator, std::string,
+                           std::variant<std::string, double>,
+                           std::optional<AttrCaseFlag>>>;
 
+        auto findValue = [&props](const std::string &key) -> std::optional<std::string> {
+            auto it = props.find(key);
+            if (it == props.end()) return std::nullopt;
+            if (const auto *s = std::get_if<std::string>(&it->second)) return *s;
+            if (const auto *d = std::get_if<double>(&it->second))
+                return std::to_string(*d);
+            if (const auto *b = std::get_if<bool>(&it->second))
+                return *b ? "true" : "false";
+            return std::nullopt;
+        };
+
+        auto testRule = [&](const RuleVariant &rule) -> bool {
+            if (const auto *boolean =
+                        std::get_if<std::tuple<AttrSelectorBooleanOperator, std::string>>(&rule)) {
+                // present/absent
+                const bool present =
+                        std::get<0>(*boolean) == AttrSelectorBooleanOperator::PRESENT;
+                auto v = findValue(std::get<1>(*boolean));
+                return present ? (v.has_value() && !v->empty())
+                               : (!v.has_value() || v->empty());
+            }
+
+            const auto &tuple = std::get<std::tuple<AttrSelectorOperator, std::string,
+                                                    std::variant<std::string, double>,
+                                                    std::optional<AttrCaseFlag>>>(rule);
+            const auto op = std::get<0>(tuple);
+            const std::string &key = std::get<1>(tuple);
+            const auto &valueVariant = std::get<2>(tuple);
+
+            std::string expected;
+            if (const auto *s = std::get_if<std::string>(&valueVariant)) {
+                expected = *s;
+            } else if (const auto *d = std::get_if<double>(&valueVariant)) {
+                expected = std::to_string(*d);
+            }
+
+            const auto &flagOpt = std::get<3>(tuple);
+            std::optional<std::string> sourceValue = findValue(key);
+            if (flagOpt.has_value() && sourceValue.has_value()) {
+                std::string lowered = *sourceValue;
+                std::transform(lowered.begin(), lowered.end(), lowered.begin(),
+                               [](unsigned char c) { return std::tolower(c); });
+                std::transform(expected.begin(), expected.end(), expected.begin(),
+                               [](unsigned char c) { return std::tolower(c); });
+                sourceValue = lowered;
+            }
+            const std::string actual = sourceValue.value_or("");
+
+            switch (op) {
+                case AttrSelectorOperator::PRESENT:
+                    return sourceValue.has_value() && !actual.empty();
+                case AttrSelectorOperator::ABSENT:
+                    return !sourceValue.has_value() || actual.empty();
+                case AttrSelectorOperator::EQ:
+                    return actual == expected;
+                case AttrSelectorOperator::TILDE: {
+                    std::istringstream iss(actual);
+                    std::string word;
+                    while (iss >> word) {
+                        if (word == expected) return true;
+                    }
+                    return false;
+                }
+                case AttrSelectorOperator::PIPE:
+                    return actual.rfind(expected + "-", 0) == 0;
+                case AttrSelectorOperator::CARAT:
+                    return actual.rfind(expected, 0) == 0;
+                case AttrSelectorOperator::DOLLAR:
+                    return actual.size() >= expected.size() &&
+                           actual.compare(actual.size() - expected.size(),
+                                          expected.size(), expected) == 0;
+                case AttrSelectorOperator::STAR:
+                    return actual.find(expected) != std::string::npos;
+            }
+            return false;
+        };
+
+        auto testList = [&](const auto &rules) -> bool {
+            for (const auto &rule: rules) {
+                if (!testRule(rule)) return false;
+            }
+            return true;
+        };
+
+        if (query.a.has_value() && !testList(query.a.value())) {
+            return false;
+        }
+        if (query.d.has_value() && !testList(query.d.value())) {
+            return false;
+        }
+        return true;
+}
+
+} // namespace margelo::nitro::cssnitro

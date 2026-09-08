@@ -68,6 +68,12 @@ export interface StyleRegistry
     variables: AnyMap,
   ): void;
   updateComponentLayout(componentId: string, value: LayoutRectangle): void;
+  /** Published component props — group children evaluate attribute queries
+   * against their container's attributes */
+  updateComponentAttributes(
+    componentId: string,
+    attributes: AnyMap,
+  ): void;
   updateComponentState(
     componentId: string,
     type: PseudoClassType,

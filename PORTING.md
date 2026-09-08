@@ -170,6 +170,39 @@ Bugs found & fixed on the way (test-first, doctest):
 7. useUnstableNativeVariable added to runtime (snapshot reads)
 8. podspec excluded cpp/bench from app builds
 
+## Group selectors: DONE (this session)
+
+All three grouping tests pass. The mechanism, end to end:
+
+1. The compiler emits group rules as container queries on the child:
+   `.group/item:active .child` → child rule cq `[{p: {a: true}, n: "group/item"}]`;
+   `.my-a.my-b .child` → cq `[{n: "my-b"}]` + aq (id) matching the container's
+   classes.
+2. The registry indexes every class referenced as a cq target
+   (referencedContainers) — a component carrying a referenced class is a group
+   container even with no rules of its own (C++ + double).
+3. Group pseudo (cq.p) evaluates against the CONTAINER's press/hover/focus
+   state (C++ testContainerQuery → testPseudoClasses(resolvedScope) — already
+   correct; double now implements it).
+4. Group attribute queries evaluate against the container's published props:
+   useStyledProps publishes props via updateComponentAttributes (new spec
+   method, C++ stores observables; the factory's evaluator reads through get
+   so the child's effect subscribes to container attribute changes).
+5. View/Text wire press/hover/focus handlers unconditionally — a component
+   with no pseudo rules of its own can still be an active group container.
+
+Dark-mode class support design (next session): `:is(.dark *)` and
+`:root[class~="dark"]` are the same machinery — colorScheme.set("dark") in
+class mode registers the dark class on the root container scope; children's
+group rules resolve through the existing scope chain. The compiler's darkMode
+directive (`@cssInterop set darkMode class dark`) needs to map
+`:is(.dark *)` selectors to the descendant cq/aq form (upstream's
+implementation is commented out — ours completes the design).
+
+Also fixed: react-native-nitro-modules moved from peerDependencies to
+dependencies — monorepo-config's blockList excluded peers' node_modules paths,
+breaking package resolution from the example app.
+
 ## Next steps
 
 1. Port remaining upstream suites: animations, transitions, calc, box-shadow,

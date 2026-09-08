@@ -1,6 +1,9 @@
 #pragma once
 
+#include <functional>
+#include "AttributeQuery.hpp"
 #include <memory>
+#include <unordered_map>
 #include <utility>
 #include <type_traits>
 #include <vector>
@@ -26,9 +29,18 @@ namespace margelo::nitro::cssnitro {
 
     class Rules {
     public:
+        using ContainerAqEvaluator =
+                std::function<bool(const AttributeQuery &)>;
+
         static bool testRule(const HybridStyleRule &rule, reactnativecss::Effect::GetProxy &get,
                              const std::string &componentId, const std::string &containerScope,
-                             const std::vector<std::string> &validAttributeQueries);
+                             const std::vector<std::string> &validAttributeQueries,
+                             const ContainerAqEvaluator &containerAqEvaluator = {});
+
+        /** Port of native/attributeQuery.ts — evaluates attribute queries
+         * against a component's props (className/disabled/dataSet) */
+        static bool testAttributeQuery(const AttributeQuery &query,
+                                       const std::unordered_map<std::string, AnyValue> &props);
 
         static bool
         testVariableMedia(const std::shared_ptr<AnyMap> &mediaMap,

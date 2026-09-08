@@ -86,6 +86,18 @@ namespace margelo::nitro::cssnitro {
                     // className is string, styleRules is vector<HybridStyleRule>
                     setClassname(className, styleRules);
                 }
+                // Index container-query targets for group-container naming
+                for (const auto &[className, styleRules]: stylesMap) {
+                    for (const auto &rule: styleRules) {
+                        if (rule.cq.has_value()) {
+                            for (const auto &cq: rule.cq.value()) {
+                                if (cq.n.has_value()) {
+                                    referencedContainers_.insert(cq.n.value());
+                                }
+                            }
+                        }
+                    }
+                }
             }
         });
     }
@@ -157,10 +169,9 @@ namespace margelo::nitro::cssnitro {
                     }
                 }
 
-                // Group selectors: a className containing "/" (or "group")
-                // names a group container (NativeWind convention)
-                if (className.find('/') != std::string::npos ||
-                    className == "group") {
+                // Group selectors: the class is referenced as a
+                // container-query target anywhere in the stylesheet
+                if (referencedContainers_.count(className) > 0) {
                     containerNames.insert(className);
                     hasContainers = true;
                 }
@@ -259,7 +270,8 @@ namespace margelo::nitro::cssnitro {
                                                                       variableScope,
                                                                       containerScope,
                                                                       validAttributeQueries,
-                                                                      inlineVarsObs);
+                                                                      inlineVarsObs,
+                                                                      &componentAttributes_);
 
             // Store the new computed with its parameters
             computedMap_[componentId] = ComputedEntry{
@@ -298,6 +310,18 @@ namespace margelo::nitro::cssnitro {
     void HybridStyleRegistry::updateComponentState(const std::string &componentId,
                                                    PseudoClassType type, bool value) {
         PseudoClasses::set(componentId, type, value);
+    }
+
+    void HybridStyleRegistry::updateComponentAttributes(
+            const std::string &componentId,
+            const std::shared_ptr<AnyMap> &attributes) {
+        auto it = componentAttributes_.find(componentId);
+        if (it != componentAttributes_.end()) {
+            it->second->set(attributes);
+        } else {
+            componentAttributes_[componentId] =
+                    reactnativecss::Observable<std::shared_ptr<AnyMap>>::create(attributes);
+        }
     }
 
     void HybridStyleRegistry::updateComponentLayout(const std::string &componentId,

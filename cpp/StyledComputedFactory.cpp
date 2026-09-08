@@ -30,14 +30,16 @@ namespace margelo::nitro::cssnitro {
             const std::string &variableScope,
             const std::string &containerScope,
             const std::vector<std::string> &validAttributeQueries,
-            const std::shared_ptr<reactnativecss::Observable<std::shared_ptr<AnyMap>>> &inlineVariables) {
+            const std::shared_ptr<reactnativecss::Observable<std::shared_ptr<AnyMap>>> &inlineVariables,
+            const std::unordered_map<std::string,
+                                     std::shared_ptr<reactnativecss::Observable<std::shared_ptr<AnyMap>>>> *componentAttributes) {
 
         // Capture rerender by value (copy) so it persists through fast refresh
         // Capture shadowUpdates by pointer since it's a stable singleton
         auto shadowUpdatesPtr = &shadowUpdates;
 
         auto computed = reactnativecss::Computed<Styled *>::create(
-                [&styleRuleMap, classNames, componentId, rerender, shadowUpdatesPtr, variableScope, containerScope, validAttributeQueries, inlineVariables](
+                [&styleRuleMap, classNames, componentId, rerender, shadowUpdatesPtr, variableScope, containerScope, validAttributeQueries, inlineVariables, componentAttributes](
                         Styled *const &prev,
                         typename reactnativecss::Effect::GetProxy &get) {
                     Styled *next = new Styled{};
@@ -69,8 +71,29 @@ namespace margelo::nitro::cssnitro {
 
                         // Add only style rules that pass the test
                         for (const HybridStyleRule &styleRule: styleRules) {
+                            // Group-attribute queries (`.a.b .c`) evaluate
+                            // against the container's published attributes
+                            Rules::ContainerAqEvaluator containerAq;
+                            if (componentAttributes != nullptr &&
+                                containerScope != componentId &&
+                                containerScope != "root") {
+                                containerAq = [&get, componentAttributes, containerScope](
+                                                      const AttributeQuery &query) -> bool {
+                                    auto it = componentAttributes->find(containerScope);
+                                    if (it == componentAttributes->end() || !it->second) {
+                                        return false;
+                                    }
+                                    // Read via get so this effect subscribes to
+                                    // attribute changes on the container
+                                    auto current = get(*it->second);
+                                    if (!current) {
+                                        return false;
+                                    }
+                                    return Rules::testAttributeQuery(query, (*current).getMap());
+                                };
+                            }
                             if (Rules::testRule(styleRule, get, componentId, containerScope,
-                                                validAttributeQueries)) {
+                                                validAttributeQueries, containerAq)) {
                                 allStyleRules.push_back(styleRule);
                             }
                         }

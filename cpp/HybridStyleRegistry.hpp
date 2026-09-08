@@ -13,6 +13,7 @@
 #include <string>
 #include <tuple>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -63,6 +64,10 @@ namespace margelo::nitro::cssnitro {
         void updateComponentLayout(const std::string &componentId,
                                    const LayoutRectangle &value) override;
 
+        void updateComponentAttributes(
+                const std::string &componentId,
+                const std::shared_ptr<::margelo::nitro::AnyMap> &attributes) override;
+
         void unlinkComponent(const std::string &componentId) override;
 
         void updateComponentInlineStyleKeys(const std::string &componentId,
@@ -86,6 +91,14 @@ namespace margelo::nitro::cssnitro {
         void loadHybridMethods() override;
 
     private:
+        // Class names referenced as container-query targets anywhere in the
+        // registered stylesheets — carrying such a class makes a component a
+        // group container (covers group/item, .a.b .c descendant selectors)
+        std::unordered_set<std::string> referencedContainers_;
+        std::unordered_map<
+                std::string,
+                std::shared_ptr<reactnativecss::Observable<std::shared_ptr<::margelo::nitro::AnyMap>>>>
+                componentAttributes_;
         std::unordered_map<
             std::string,
             std::shared_ptr<reactnativecss::Observable<

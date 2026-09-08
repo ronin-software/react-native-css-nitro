@@ -54,6 +54,7 @@ namespace margelo::nitro::cssnitro {
             const std::string &containerScope,
             const std::vector<std::string> &validAttributeQueries,
             const std::shared_ptr<reactnativecss::Observable<std::shared_ptr<margelo::nitro::AnyMap>>> &inlineVariables
-                    = nullptr);
+                    = nullptr,
+            const std::unordered_map<std::string, std::shared_ptr<reactnativecss::Observable<std::shared_ptr<margelo::nitro::AnyMap>>>> *componentAttributes = nullptr);
 
 } // namespace margelo::nitro::cssnitro

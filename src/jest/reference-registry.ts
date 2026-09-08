@@ -14,6 +14,7 @@
  *   by the doctests
  */
 import type { AnyMap, ValueType } from "react-native-nitro-modules";
+import { testAttributeQuery } from "../native/attributeQuery";
 
 import type {
   Declarations,
@@ -50,6 +51,10 @@ export class ReferenceRegistry {
     string,
     { x: number; y: number; width: number; height: number }
   >();
+  private componentValidAqs = new Map<string, Set<string>>();
+  private scopeDependents = new Map<string, Set<string>>();
+  private referencedContainers = new Set<string>();
+  private componentAttributes = new Map<string, Record<string, unknown>>();
   private containerScopes = new Map<
     string,
     { parent: string; names: Set<string> }
@@ -81,6 +86,10 @@ export class ReferenceRegistry {
     this.componentVars.clear();
     this.layouts.clear();
     this.containerScopes.clear();
+    this.componentValidAqs.clear();
+    this.scopeDependents.clear();
+    this.referencedContainers.clear();
+    this.componentAttributes.clear();
     this.rerenders.clear();
     this.window = { width: 0, height: 0, scale: 1, fontScale: 1 };
     this.colorScheme = null;
@@ -105,6 +114,18 @@ export class ReferenceRegistry {
     if (stylesheet.s) {
       for (const [className, rules] of Object.entries(stylesheet.s)) {
         this.setClassname(className, rules);
+      }
+      // Index which class names appear as container-query targets — a
+      // component carrying such a class is a group container even when it
+      // has no rules of its own (e.g. `.my-a.my-b .child` → cq n "my-b")
+      for (const rules of Object.values(stylesheet.s)) {
+        for (const rule of rules) {
+          for (const cq of rule.cq ?? []) {
+            if (cq.n) {
+              this.referencedContainers.add(cq.n);
+            }
+          }
+        }
       }
     }
     if (stylesheet.r !== undefined) {
@@ -160,10 +181,11 @@ export class ReferenceRegistry {
     let hasContainers = false;
 
     for (const className of splitClassNames(classNames)) {
-      // Group selectors: a className containing "/" (or "group") names a group
-      // container (NativeWind convention) — checked before the rules lookup so
+      // Group selectors: the class is referenced as a container-query target
+      // anywhere in the stylesheet (covers group/item, plain descendant
+      // selectors, and bare "group") — checked before the rules lookup so
       // marker-only group classes register too
-      if (className.includes('/') || className === 'group') {
+      if (this.referencedContainers.has(className)) {
         containerNames.add(className);
         hasContainers = true;
       }
@@ -226,6 +248,23 @@ export class ReferenceRegistry {
     validAttributeQueries: string[],
   ): Styled {
     this.rerenders.set(componentId, rerender);
+    const prevAqIds = this.componentValidAqs.get(componentId);
+    const nextAqIds = new Set(validAttributeQueries);
+    const aqChanged =
+      !prevAqIds ||
+      prevAqIds.size !== nextAqIds.size ||
+      [...nextAqIds].some((id) => !prevAqIds.has(id));
+    this.componentValidAqs.set(componentId, nextAqIds);
+    if (aqChanged) {
+      // Attribute-query validity changed — dependents (group children)
+      // re-evaluate their rules against the fresh attributes
+      this.notifyAll();
+    }
+    if (containerScope && containerScope !== componentId) {
+      const deps = this.scopeDependents.get(containerScope) ?? new Set();
+      deps.add(componentId);
+      this.scopeDependents.set(containerScope, deps);
+    }
 
     // Collect rules from all classNames that pass their conditions
     // (container scopes are registered by getDeclarations, called before this)
@@ -340,6 +379,23 @@ export class ReferenceRegistry {
     this.componentStates.delete(componentId);
   }
 
+  updateComponentAttributes(
+    componentId: string,
+    attributes: Record<string, unknown>,
+  ): void {
+    // Attribute queries only read className/disabled — notify dependents
+    // when those change so group children re-evaluate
+    const prev = this.componentAttributes.get(componentId);
+    this.componentAttributes.set(componentId, attributes);
+    if (
+      prev &&
+      (prev.className !== attributes.className ||
+        prev.disabled !== attributes.disabled)
+    ) {
+      this.notifyAll();
+    }
+  }
+
   updateComponentState(
     componentId: string,
     type: PseudoClassType,
@@ -348,8 +404,12 @@ export class ReferenceRegistry {
     const state = this.componentStates.get(componentId) ?? {};
     state[type] = value;
     this.componentStates.set(componentId, state);
-    // Recompute synchronously, then notify the component
+    // Recompute synchronously, then notify the component and its group
+    // dependents (children whose rules reference this component's state)
     this.rerenders.get(componentId)?.();
+    for (const dep of this.scopeDependents.get(componentId) ?? []) {
+      this.rerenders.get(dep)?.();
+    }
   }
 
   updateComponentLayout(
@@ -400,7 +460,21 @@ export class ReferenceRegistry {
     validAttributeQueries: string[],
   ): boolean {
     if (rule.aq) {
-      if (!rule.id || !validAttributeQueries.includes(rule.id)) {
+      if (rule.id && validAttributeQueries.includes(rule.id)) {
+        // Own-attribute query, already validated by useStyledProps
+      } else if (
+        rule.id &&
+        containerScope !== componentId &&
+        containerScope !== "root" &&
+        testAttributeQuery(
+          this.componentAttributes.get(containerScope) ?? {},
+          rule.aq,
+          false,
+        )
+      ) {
+        // Group-attribute query (`.a.b .c`): evaluated against the group
+        // container's attributes
+      } else {
         return false;
       }
     }
@@ -462,6 +536,22 @@ export class ReferenceRegistry {
     if (resolved === undefined) {
       return false;
     }
+
+    // Group pseudo (e.g. .group/item:active .child): check the container's
+    // own interactive state, not the component's
+    if (cq.p) {
+      const state = this.componentStates.get(resolved) ?? {};
+      if (cq.p.a && !state.active) {
+        return false;
+      }
+      if (cq.p.h && !state.hover) {
+        return false;
+      }
+      if (cq.p.f && !state.focus) {
+        return false;
+      }
+    }
+
     if (!cq.m) {
       return true;
     }
