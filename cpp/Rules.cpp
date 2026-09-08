@@ -349,8 +349,19 @@ namespace margelo::nitro::cssnitro {
             containerName = containerQuery.n.value();
         }
 
+        // Subscribe to scope changes so a query that fails now (container
+        // not yet registered) re-resolves when setScope fires
+        get(*ContainerContext::scopeVersion());
+
         // Resolve the actual container scope using findInScope
         auto resolvedScope = ContainerContext::findInScope(containerScope, containerName);
+
+        if (std::getenv("RN_CSS_TRACE")) {
+            std::cout << "[rn-css] cq n=" << (containerName ? *containerName : "none")
+                      << " from=" << containerScope
+                      << " resolved=" << (resolvedScope ? *resolvedScope : "none")
+                      << std::endl;
+        }
 
         // If we can't resolve the scope, the query fails
         if (!resolvedScope.has_value()) {

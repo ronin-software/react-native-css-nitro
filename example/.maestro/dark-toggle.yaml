@@ -1,0 +1,6 @@
+appId: cssnitro.example
+---
+- tapOn:
+    id: "dark-toggle"
+- waitForAnimationToEnd:
+    timeout: 3000

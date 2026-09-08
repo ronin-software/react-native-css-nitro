@@ -207,13 +207,26 @@ export function useStyledProps(
     : EMPTY_DECLARATIONS;
 
   // Publish props for group-attribute evaluation (children resolve
-  // `.a.b .c`-style queries against their container's attributes)
+  // `.a.b .c`-style queries against their container's attributes). Only
+  // primitive props are publishable — attribute queries read className and
+  // disabled, and React elements (children) can't cross the JSI boundary.
+  const publishable: Record<string, string | number | boolean> = {};
+  for (const [key, value] of Object.entries(originalProps)) {
+    if (
+      (typeof value === "string" ||
+        typeof value === "number" ||
+        typeof value === "boolean") &&
+      value !== undefined
+    ) {
+      publishable[key] = value;
+    }
+  }
   (StyleRegistry as {
     updateComponentAttributes?: (
       id: string,
       attrs: Record<string, unknown>,
     ) => void;
-  }).updateComponentAttributes?.(componentId, originalProps);
+  }).updateComponentAttributes?.(componentId, publishable);
 
   let validAttributeQueryIds = "";
 
@@ -232,6 +245,9 @@ export function useStyledProps(
   const componentData = useMemo(() => {
     if (!effectiveClassName) {
       return {};
+    }
+    if (process.env.NW_TRACE || (globalThis as { __NW_TRACE__?: boolean }).__NW_TRACE__) {
+      console.log('REGISTER', componentId, JSON.stringify(effectiveClassName), 'cScope:', containerScope);
     }
 
     const validAttributeQueries = validAttributeQueryIds.split(" ");
@@ -256,7 +272,8 @@ export function useStyledProps(
     instance,
   ]);
 
-  // Update the container scope after we have registered the component, so it doesn't use its own scope
+  // Update the container scope after we have registered the component, so it
+  // doesn't use its own scope — the provider passes this to children
   containerScope = declarations.containerScope ?? containerScope;
 
   const p: Record<string, unknown> = {
@@ -270,22 +287,43 @@ export function useStyledProps(
     [componentId],
   );
 
-  // Always wired: any component can be a group container referenced by
-  // children's rules (`.group/item:active .child`), so press/hover/focus
-  // state must be tracked even when the component has no pseudo rules itself
-  p.onPress =
-    p.onPress ??
-    (() => {
-      return;
-    });
-  p.onPressIn = onPressIn(componentId, p);
-  p.onPressOut = onPressOut(componentId, p);
+  // Wire state tracking only when needed: the component has its own pseudo
+  // rules, is a group container (children reference its state), or carries
+  // user handlers. Wiring every View as a responder steals touches from
+  // children on iOS.
+  const isGroupContainer =
+    containerScope === componentId &&
+    (declarations.containerScope !== undefined ||
+      originalProps.className?.includes("/"));
+  const interactive =
+    declarations.active ||
+    declarations.hover ||
+    declarations.focus ||
+    isGroupContainer ||
+    typeof originalProps.onPress === "function" ||
+    typeof originalProps.onPressIn === "function" ||
+    typeof originalProps.onLongPress === "function";
 
-  p.onHoverIn = onHoverIn(componentId, p);
-  p.onHoverOut = onHoverOut(componentId, p);
+  if (interactive) {
+    const userOnPress = originalProps.onPress;
+    p.onPress = () => {
+      if (typeof userOnPress === "function") {
+        userOnPress();
+      }
+    };
+    p.onPressIn = onPressIn(componentId, originalProps);
+    p.onPressOut = onPressOut(componentId, originalProps);
+  }
 
-  p.onFocus = onFocus(componentId, p);
-  p.onBlur = onBlur(componentId, p);
+  if (declarations.hover || isGroupContainer) {
+    p.onHoverIn = onHoverIn(componentId, originalProps);
+    p.onHoverOut = onHoverOut(componentId, originalProps);
+  }
+
+  if (declarations.focus || isGroupContainer) {
+    p.onFocus = onFocus(componentId, originalProps);
+    p.onBlur = onBlur(componentId, originalProps);
+  }
 
   return {
     props: componentData.props,
@@ -301,31 +339,35 @@ export function useStyledProps(
 // The original handler is captured before the wrapper is assigned to the
 // props object, otherwise the wrapper would call itself
 const stateHandler =
-  (id: string, type: PseudoClassType, value: boolean, eventKey: string) =>
-  (props: Record<string, any>) => {
+  (
+    id: string,
+    type: PseudoClassType,
+    value: boolean,
+    eventKey: string,
+    props: Record<string, any>,
+  ) =>
+  () => {
     const original = props[eventKey];
-    return () => {
-      if (typeof original === "function") {
-        original();
-      }
-      getStyleRegistry().updateComponentState(id, type, value);
-    };
+    if (typeof original === "function") {
+      original();
+    }
+    getStyleRegistry().updateComponentState(id, type, value);
   };
 
 const onPressIn = (id: string, props: Record<string, any>) =>
-  stateHandler(id, "active", true, "onPressIn")(props);
+  stateHandler(id, "active", true, "onPressIn", props);
 
 const onPressOut = (id: string, props: Record<string, any>) =>
-  stateHandler(id, "active", false, "onPressOut")(props);
+  stateHandler(id, "active", false, "onPressOut", props);
 
 const onHoverIn = (id: string, props: Record<string, any>) =>
-  stateHandler(id, "hover", true, "onHoverIn")(props);
+  stateHandler(id, "hover", true, "onHoverIn", props);
 
 const onHoverOut = (id: string, props: Record<string, any>) =>
-  stateHandler(id, "hover", false, "onHoverOut")(props);
+  stateHandler(id, "hover", false, "onHoverOut", props);
 
 const onFocus = (id: string, props: Record<string, any>) =>
-  stateHandler(id, "focus", true, "onFocus")(props);
+  stateHandler(id, "focus", true, "onFocus", props);
 
 const onBlur = (id: string, props: Record<string, any>) =>
-  stateHandler(id, "focus", false, "onBlur")(props);
+  stateHandler(id, "focus", false, "onBlur", props);

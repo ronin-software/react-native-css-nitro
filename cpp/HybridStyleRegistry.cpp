@@ -1,3 +1,6 @@
+#include <iostream>
+#include <cstdlib>
+
 #include "HybridStyleRegistry.hpp"
 #include "Computed.hpp"
 #include "ContainerContext.hpp"
@@ -28,6 +31,8 @@ namespace margelo::nitro::cssnitro {
     // Initialize static members
     std::unique_ptr<ShadowTreeUpdateManager> HybridStyleRegistry::shadowUpdates_ =
             std::make_unique<ShadowTreeUpdateManager>();
+    std::unordered_set<std::string>
+        HybridStyleRegistry::referencedContainers_;
     std::unordered_map<std::string, HybridStyleRegistry::ComputedEntry> HybridStyleRegistry::computedMap_;
     std::unordered_map<std::string, std::shared_ptr<reactnativecss::Observable<std::vector<HybridStyleRule>>>> HybridStyleRegistry::styleRuleMap_;
     std::atomic<uint64_t> HybridStyleRegistry::nextStyleRuleId_{1};
@@ -64,6 +69,9 @@ namespace margelo::nitro::cssnitro {
     }
 
     void HybridStyleRegistry::addStyleSheet(const HybridStyleSheet &stylesheet) {
+        if (std::getenv("RN_CSS_TRACE")) {
+            std::cout << "[rn-css] addSheet this=" << this << std::endl;
+        }
         // Create an Effect batch to process all style updates together
         reactnativecss::Effect::batch([this, &stylesheet]() {
             // Root variables, including the rem base the relative units use.
@@ -86,12 +94,20 @@ namespace margelo::nitro::cssnitro {
                     // className is string, styleRules is vector<HybridStyleRule>
                     setClassname(className, styleRules);
                 }
+                if (std::getenv("RN_CSS_TRACE")) {
+                    std::cout << "[rn-css] sheet index size="
+                              << referencedContainers_.size() << std::endl;
+                }
                 // Index container-query targets for group-container naming
                 for (const auto &[className, styleRules]: stylesMap) {
                     for (const auto &rule: styleRules) {
                         if (rule.cq.has_value()) {
                             for (const auto &cq: rule.cq.value()) {
                                 if (cq.n.has_value()) {
+                                    if (std::getenv("RN_CSS_TRACE")) {
+                                        std::cout << "[rn-css] index cq n="
+                                                  << cq.n.value() << std::endl;
+                                    }
                                     referencedContainers_.insert(cq.n.value());
                                 }
                             }
@@ -132,6 +148,10 @@ namespace margelo::nitro::cssnitro {
                                                       const std::string &containerScope) {
         Declarations declarations;
         declarations.variableScope = variableScope;
+        if (std::getenv("RN_CSS_TRACE")) {
+            std::cout << "[rn-css] getDecl this=" << this << " " << componentId
+                      << " cls=" << classNames << std::endl;
+        }
 
         std::regex whitespace{"\\s+"};
         std::sregex_token_iterator tokenIt(classNames.begin(), classNames.end(), whitespace, -1);
@@ -143,6 +163,22 @@ namespace margelo::nitro::cssnitro {
             const std::string className = tokenIt->str();
             if (className.empty()) {
                 continue;
+            }
+
+            const bool isReferenced =
+                    referencedContainers_.count(className) > 0;
+            if (std::getenv("RN_CSS_TRACE") && !referencedContainers_.empty()) {
+                std::cout << "[rn-css] set(" << referencedContainers_.size()
+                          << "):";
+                for (const auto &name: referencedContainers_) {
+                    std::cout << " '" << name << "'";
+                }
+                std::cout << std::endl;
+            }
+            if (isReferenced) {
+                ContainerContext::setScope(componentId, containerScope,
+                                           {className});
+                declarations.containerScope = componentId;
             }
 
             auto styleIt = styleRuleMap_.find(className);
@@ -208,6 +244,10 @@ namespace margelo::nitro::cssnitro {
             // Register this component as a named container; children inherit
             // the scope through the ContainerContext provider chain
             if (hasContainers) {
+                if (std::getenv("RN_CSS_TRACE")) {
+                    std::cout << "[rn-css] setScope " << componentId
+                              << " names=" << containerNames.size() << std::endl;
+                }
                 ContainerContext::setScope(componentId, containerScope,
                                            containerNames);
                 declarations.containerScope = componentId;
@@ -229,6 +269,10 @@ namespace margelo::nitro::cssnitro {
                                            const std::string &variableScope,
                                            const std::string &containerScope,
                                            const std::vector<std::string> &validAttributeQueries) {
+        if (std::getenv("RN_CSS_TRACE")) {
+            std::cout << "[rn-css] register " << componentId << " cls="
+                      << classNames << " cScope=" << containerScope << std::endl;
+        }
         // Check if an entry exists for this component
         auto existing = computedMap_.find(componentId);
 
@@ -309,6 +353,10 @@ namespace margelo::nitro::cssnitro {
 
     void HybridStyleRegistry::updateComponentState(const std::string &componentId,
                                                    PseudoClassType type, bool value) {
+        if (std::getenv("RN_CSS_TRACE")) {
+            std::cout << "[rn-css] state " << componentId << " active=" << value
+                      << std::endl;
+        }
         PseudoClasses::set(componentId, type, value);
     }
 
@@ -326,7 +374,10 @@ namespace margelo::nitro::cssnitro {
 
     void HybridStyleRegistry::updateComponentLayout(const std::string &componentId,
                                                     const margelo::nitro::cssnitro::LayoutRectangle &value) {
-
+        if (std::getenv("RN_CSS_TRACE")) {
+            std::cout << "[rn-css] layout " << componentId << " w=" << value.width
+                      << std::endl;
+        }
         ContainerContext::setLayout(componentId, value.x, value.y, value.width, value.height);
     }
 

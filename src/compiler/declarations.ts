@@ -110,7 +110,9 @@ export class DeclarationBuilder {
     if (name === false) {
       this.declaration.c.push("___unset___");
     } else {
-      this.declaration.c.push(...name);
+      // Query names are prefixed "c:" (upstream parity) — registration must
+      // use the same namespace or named containers never resolve
+      this.declaration.c.push(...name.map((n) => `c:${n}`));
     }
   }
 

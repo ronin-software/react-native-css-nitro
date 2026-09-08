@@ -1,59 +1,199 @@
-/* End-to-end verification styles — compiled by the Metro plugin at bundle
-   time and injected via StyleRegistry.addStyleSheet */
+/* Visual showcase styles — compiled by the Metro plugin at bundle time
+   and injected via StyleRegistry.addStyleSheet */
+@cssInterop set darkMode class dark;
 
-.e2e-row {
-  padding: 8px;
+/* ---------- base ---------- */
+
+.screen {
+  flex: 1;
+  padding-top: 64px;
+  padding-bottom: 32px;
+  padding-left: 20px;
+  padding-right: 20px;
+  gap: 10px;
+  background-color: #f8fafc;
+}
+
+/* dark mode flips the whole screen via class selectors on the root */
+.dark {
+  background-color: #020617;
+}
+.dark .screen {
+  background-color: #020617;
+}
+
+.header {
+  font-size: 26px;
+  font-weight: bold;
+  color: #0f172a;
+}
+.dark .header {
+  color: #f1f5f9;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: #64748b;
+  margin-bottom: 6px;
+}
+.dark .subtitle {
+  color: #94a3b8;
+}
+
+.section {
+  font-size: 13px;
+  font-weight: bold;
+  color: #2563eb;
+  text-transform: uppercase;
+  margin-top: 10px;
+}
+.dark .section {
+  color: #60a5fa;
+}
+
+/* ---------- dark mode: :is(.dark *) + .dark .x ---------- */
+
+.toggle {
+  background-color: #2563eb;
+  padding: 10px;
+  border-radius: 10px;
+}
+
+.toggle-text {
+  color: #ffffff;
+  text-align: center;
+  font-weight: bold;
+}
+
+.dark-card {
+  background-color: #f1f5f9;
+  border-radius: 12px;
+  padding: 14px;
+}
+.dark .dark-card {
+  background-color: #1e293b;
+}
+.dark .dark-card .dark-text {
+  color: #fbbf24;
+}
+
+.dark-text {
+  color: #0f172a;
+  font-size: 15px;
+}
+
+/* ---------- group selectors ---------- */
+
+.group-card {
+  background-color: #f1f5f9;
+  border-radius: 12px;
+  padding: 12px;
+  border-width: 2px;
+  border-color: #cbd5e1;
+}
+
+.group-hint {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-bottom: 6px;
+}
+
+.group-child {
+  color: #334155;
+  font-size: 15px;
+  font-weight: bold;
+  padding: 10px;
   border-radius: 8px;
+  background-color: #e2e8f0;
 }
 
-/* compile-time color resolution (hsl → hex) */
-.e2e-color {
-  color: hsl(120 100% 25%);
+/* pressing the card restyles the child */
+.group\/presscard:active .group-child {
+  background-color: #dc2626;
+  color: #ffffff;
+}
+.group\/presscard:active .group-card {
+  border-color: #dc2626;
 }
 
-/* calc + units */
-.e2e-calc {
-  color: #000080;
-  font-size: calc(10px + 8px);
+/* ---------- container queries ---------- */
+
+.cq-frame {
+  container-type: inline-size;
+  container-name: frame;
+  background-color: #f1f5f9;
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 4px;
 }
 
-/* runtime CSS variables */
-.e2e-var {
-  --brand: #aa00aa;
-  color: var(--brand);
+.cq-narrow {
+  width: 45%;
 }
 
-/* media query: iPhone 17 Pro is 402pt wide */
-.e2e-mq {
-  color: #888888;
+.cq-child {
+  color: #dc2626;
+  font-weight: bold;
+  font-size: 14px;
 }
 
-@media (min-width: 300px) {
-  .e2e-mq {
-    color: #ff8800;
+@container frame (min-width: 280px) {
+  .cq-child {
+    color: #16a34a;
   }
 }
 
-/* box-shadow */
-.e2e-shadow {
-  background-color: #ffffff;
-  box-shadow: 0 4px 8px #00000080;
+/* ---------- core features ---------- */
+
+.feature-grid {
+  flex-direction: row;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-/* transform */
-.e2e-transform {
-  color: #008888;
-  transform: rotate(45deg);
-}
-
-/* active pseudo-class: tapping turns it yellow, releasing restores blue */
-.e2e-press {
-  background-color: #0000ff;
+.feat-calc {
   color: #ffffff;
-  padding: 12px;
+  background-color: #7c3aed;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: calc(10px + 6px);
+  font-weight: bold;
 }
 
-.e2e-press:active {
-  background-color: #ffff00;
-  color: #000000;
+.feat-var {
+  --feat: #0891b2;
+  color: #ffffff;
+  background-color: var(--feat);
+  padding: 10px;
+  border-radius: 8px;
+  font-weight: bold;
+}
+
+.feat-shadow {
+  color: #334155;
+  background-color: #ffffff;
+  padding: 10px;
+  border-radius: 8px;
+  font-weight: bold;
+  box-shadow: 0 4px 10px #00000066;
+}
+
+.feat-transform {
+  color: #ffffff;
+  background-color: #ea580c;
+  padding: 10px;
+  border-radius: 8px;
+  font-weight: bold;
+  transform: rotate(-6deg);
+}
+
+.feat-mq {
+  color: #ff8800;
+  font-size: 12px;
+}
+
+@media (max-width: 300px) {
+  .feat-mq {
+    color: #64748b;
+  }
 }

@@ -94,7 +94,9 @@ namespace margelo::nitro::cssnitro {
         // Class names referenced as container-query targets anywhere in the
         // registered stylesheets — carrying such a class makes a component a
         // group container (covers group/item, .a.b .c descendant selectors)
-        std::unordered_set<std::string> referencedContainers_;
+        // Global: the JS side can create multiple hybrid objects (one per
+        // module-copy resolution path) — group naming must be process-wide
+        static std::unordered_set<std::string> referencedContainers_;
         std::unordered_map<
                 std::string,
                 std::shared_ptr<reactnativecss::Observable<std::shared_ptr<::margelo::nitro::AnyMap>>>>

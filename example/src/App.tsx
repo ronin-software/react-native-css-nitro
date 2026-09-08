@@ -1,76 +1,110 @@
 /**
- * End-to-end verification screen for react-native-css-nitro.
+ * Visual showcase — every feature rendered live through the C++ runtime.
+ * The CSS below is compiled by the Metro plugin at bundle time and
+ * injected via `import "./e2e.css"`.
  *
- * Every element exercises a ported feature and carries a testID so the
- * Maestro flow + agent-device can assert on it. The CSS is compiled by the
- * Metro plugin at bundle time and injected via `import "./e2e.css"`.
+ * Sections:
+ *   1. C++ interop (multiply via Nitro hybrid object)
+ *   2. Dark mode — class selectors driven by colorScheme.set
+ *   3. Group selectors — pressing the card restyles the child
+ *   4. Container queries — same child class, different container widths
+ *   5. Compile-time + runtime features (calc, vars, media, shadow, transform)
  */
-import { StyleSheet } from "react-native";
+import { useState } from "react";
 
-import { View } from "react-native-css-nitro/components/View";
+import { Pressable as RNPressable } from "react-native";
+
 import { Text } from "react-native-css-nitro/components/Text";
+import { View } from "react-native-css-nitro/components/View";
 import {
+  colorScheme,
   getStyleRegistry,
   multiply,
-  specificity,
 } from "react-native-css-nitro";
 
 import "./e2e.css";
 
-// Nitro C++ interop sanity: the hybrid object must answer 21
-getStyleRegistry(); // force native registry creation before rendering
-
-const Row = ({
-  id,
-  label,
-  className,
-}: {
-  id: string;
-  label: string;
-  className: string;
-}) => (
-  <View testID={`${id}-row`} className="e2e-row">
-    <Text testID={id} className={className}>
-      {label}
-    </Text>
-  </View>
-);
+// Force native registry creation before first render
+(globalThis as { __NW_TRACE__?: boolean }).__NW_TRACE__ = true;
+getStyleRegistry();
 
 export default function App() {
+  const [dark, setDark] = useState(false);
+  const [rawProbe, setRawProbe] = useState(0);
+
+  const toggleDark = () => {
+    const next = !dark;
+    setDark(next);
+    colorScheme.set(next ? "dark" : "light");
+  };
+
   return (
-    <View style={styles.container}>
-      <Text testID="e2e-jsi" className="e2e-title">
-        Multiply28: {multiply(3, 7)}
+    <View className={dark ? "screen dark" : "screen"}>
+      <Text className="header" testID="showcase-header">
+        react-native-css-nitro
       </Text>
-      <Row id="e2e-color" label="color" className="e2e-color" />
-      <Row id="e2e-calc" label="calc" className="e2e-calc" />
-      <Row id="e2e-var" label="variable" className="e2e-var" />
-      <Row id="e2e-mq" label="media" className="e2e-mq" />
-      <Row id="e2e-shadow" label="shadow" className="e2e-shadow" />
-      <Row id="e2e-transform" label="transform" className="e2e-transform" />
-      <Row id="e2e-press" label="press me" className="e2e-press" />
+      <Text className="subtitle">C++ runtime · multiply(3,7) = {multiply(3, 7)}</Text>
+
+      <Text className="section">Dark mode (class selectors)</Text>
+      <RNPressable
+        onPress={() => setRawProbe((n) => n + 1)}
+        hitSlop={8}
+      >
+        <Text className="subtitle">raw pressable probe: {rawProbe}</Text>
+      </RNPressable>
+      <View
+        className="toggle"
+        testID="dark-toggle"
+        {...({ onPress: toggleDark } as Record<string, unknown> as { onPress: () => void })}
+      >
+        <Text className="toggle-text" testID="toggle-label">
+          {dark ? "☀️ switch to light" : "🌙 switch to dark"}
+        </Text>
+      </View>
+      <View
+        className="toggle"
+        testID="dark-toggle2"
+        {...({ onPress: () => setRawProbe((n) => n + 100) } as Record<string, unknown> as { onPress: () => void })}
+      >
+        <Text className="toggle-text">styled-view probe: {rawProbe}</Text>
+      </View>
+
+      <View className="dark-card" testID="dark-card">
+        <Text className="dark-text" testID="dark-card-text">
+          {dark ? "🌙 dark styles active" : "☀️ light styles active"}
+        </Text>
+      </View>
+
+      <Text className="section">Group selectors</Text>
+      <View className="group/presscard group-card" testID="group-card">
+        <Text className="group-hint">press and hold this card</Text>
+        <Text className="group-child" testID="group-child">
+          I change with my parent
+        </Text>
+      </View>
+
+      <Text className="section">Container queries</Text>
+      <View className="cq-frame" testID="cq-wide">
+        <Text className="cq-child" testID="cq-wide-label">
+          full width → green
+        </Text>
+      </View>
+      <View className="cq-frame cq-narrow" testID="cq-narrow">
+        <Text className="cq-child" testID="cq-narrow-label">
+          half width → red
+        </Text>
+      </View>
+
+      <Text className="section">Core features</Text>
+      <View className="feature-grid">
+        <Text className="feat-calc">calc</Text>
+        <Text className="feat-var">var</Text>
+        <Text className="feat-shadow">shadow</Text>
+        <Text className="feat-transform">45°</Text>
+      </View>
+      <Text className="feat-mq" testID="mq-label">
+        media query: ≥300px ✓
+      </Text>
     </View>
   );
 }
-
-// Hand-written rule exercising the manual-registry path (same as before)
-getStyleRegistry().addStyleSheet({
-  s: {
-    "e2e-title": [
-      {
-        s: specificity({ className: 1 }),
-        d: { color: "#00aa00", fontSize: 22 },
-      },
-    ],
-  },
-});
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "flex-start",
-    justifyContent: "center",
-    paddingHorizontal: 24,
-    gap: 12,
-  },
-});

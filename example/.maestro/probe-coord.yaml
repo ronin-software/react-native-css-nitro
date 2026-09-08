@@ -1,0 +1,4 @@
+appId: cssnitro.example
+---
+- tapOn:
+    point: "50%, 19%"

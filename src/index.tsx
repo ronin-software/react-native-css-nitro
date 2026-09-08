@@ -4,6 +4,7 @@ import type { CssNitro } from "./CssNitro.nitro";
 import type { Math } from "./specs/Math.nitro";
 
 export { getStyleRegistry, setStyleRegistry } from "./specs/StyleRegistry";
+export { colorScheme } from "./native/colorScheme";
 export {
   styled,
   useCssElement,

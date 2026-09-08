@@ -1,0 +1,6 @@
+appId: cssnitro.example
+---
+- assertVisible:
+    id: "dark-toggle"
+- tapOn:
+    id: "dark-toggle"

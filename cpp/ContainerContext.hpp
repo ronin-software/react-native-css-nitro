@@ -47,6 +47,10 @@ namespace margelo::nitro::cssnitro {
     private:
         static std::unordered_map<std::string, LayoutBounds> _layoutMap;
         static std::unordered_map<std::string, ScopeHierarchy> _scopeMap;
+        // Monotonic scope-generation counter observable: every container-query
+        // evaluation reads it (subscribing the effect), and setScope bumps it —
+        // queries that failed because the scope wasn't registered yet re-resolve
+        static std::shared_ptr<reactnativecss::Observable<double>> _scopeVersion;
 
     public:
         // Helper to find a name in scope hierarchy
@@ -56,6 +60,11 @@ namespace margelo::nitro::cssnitro {
         /**
          * Set the scope hierarchy for a container
          */
+        static std::shared_ptr<reactnativecss::Observable<double>>
+        scopeVersion() {
+            return _scopeVersion;
+        }
+
         static void setScope(const std::string &containerScope,
                              const std::string &parent,
                              const std::unordered_set<std::string> &names);

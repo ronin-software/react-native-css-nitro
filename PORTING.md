@@ -220,6 +220,40 @@ commented out in selectors.ts:
 - The inline-variables pass now refuses to statically inline variables
   declared in dark-gated rules (they must stay runtime-conditioned)
 
+## E2E verification round (visual showcase)
+
+Built a visual showcase into the example app (dark mode toggle, group press
+card, container query frames, core feature chips). Screenshots in
+`verification/` (v1-light, v2-dark, gp5 = group mid-press).
+
+Bugs this round shook out (all fixed, all test-verified):
+
+1. Compiler: container registration not prefixed "c:" — named containers
+   never matched their queries (upstream prefixes both sides; we only did
+   queries). Found via the showcase; container-queries + grouping suites
+   still green after.
+2. C++ VariableContext::getWidth/getHeight used find() — a first resolve
+   before any layout event returned nullopt WITHOUT subscribing the effect to
+   the width/height observable, so later layout updates never recomputed the
+   query. Now uses operator[] (0.0 defaults) so resolution always subscribes.
+3. C++ Rules::testContainerQuery: a query whose container wasn't registered
+   yet failed WITHOUT subscribing to anything, so it never re-resolved. Added
+   a scope-version observable: every cq evaluation subscribes, setScope bumps
+   the version → pending resolutions retry.
+4. The CSS-injection JS module and app code could resolve to different JS
+   module copies → two HybridStyleRegistry instances. styleRuleMap_ was
+   already static; referencedContainers_ wasn't — made it static. While
+   fixing, corrected a malformed static-definition (inserted between the
+   declaration and its initializer) that had been silently corrupting the
+   registry.
+5. useStyledProps: press/hover/focus handlers captured the user's onPress
+   from a mutated props object (circular wrapper) — handlers now capture
+   from originalProps, and wiring is conditional (own pseudo rules OR group
+   container) so plain Views don't become responders and steal touches.
+6. colorScheme export added to the package root.
+7. updateComponentAttributes: only primitive props cross JSI (React elements
+   crashed the hybrid call).
+
 ## Next steps
 
 1. Port remaining upstream suites: animations, transitions, calc, box-shadow,
