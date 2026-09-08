@@ -44,10 +44,7 @@ test("Unnamed containers", () => {
   expect(child).toHaveStyle({ color: "#fff" });
 });
 
-// TODO: named containers need ContainerContext::setScope wiring — the scope
-// hierarchy (parent + names) is unwired in the C++ registry, so named
-// container queries cannot resolve anywhere yet
-test.skip("container query width", () => {
+test("container query width", () => {
   registerCSS(`
       .container {
         container-name: my-container;

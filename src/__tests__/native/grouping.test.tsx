@@ -11,6 +11,10 @@ jest.useFakeTimers();
 
 // TODO: blocked on ContainerContext::setScope wiring (group selectors compile
   // to container queries: cq: [{n: "group/…"}])
+  // TODO: group propagation — the parent registers the "group/item" container
+  // scope (verified), but the memoized child's re-render on container-scope
+  // change isn't propagating yet (child useStyledProps doesn't re-run
+  // registerComponent when only the inherited containerScope changes)
   test.skip("groups", () => {
   registerCSS(`
     .group\\/item .my-class {
@@ -39,6 +43,10 @@ jest.useFakeTimers();
 
 // TODO: blocked on ContainerContext::setScope wiring (group selectors compile
   // to container queries: cq: [{n: "group/…"}])
+  // TODO: group propagation — the parent registers the "group/item" container
+  // scope (verified), but the memoized child's re-render on container-scope
+  // change isn't propagating yet (child useStyledProps doesn't re-run
+  // registerComponent when only the inherited containerScope changes)
   test.skip("group - active", () => {
   registerCSS(
     `.group\\/item:active .my-class {
@@ -103,6 +111,10 @@ test.skip("group - active (animated)", () => {
 
 // TODO: blocked on ContainerContext::setScope wiring (group selectors compile
   // to container queries: cq: [{n: "group/…"}])
+  // TODO: group propagation — the parent registers the "group/item" container
+  // scope (verified), but the memoized child's re-render on container-scope
+  // change isn't propagating yet (child useStyledProps doesn't re-run
+  // registerComponent when only the inherited containerScope changes)
   test.skip("group selector", () => {
   registerCSS(
     `.my-a.my-b .my-class {

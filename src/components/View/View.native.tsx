@@ -1,5 +1,5 @@
 import { useId, type ComponentProps } from "react";
-import { Pressable } from "react-native";
+import { Pressable, } from "react-native";
 
 import { createAnimatedComponent } from "react-native-reanimated";
 
@@ -33,6 +33,10 @@ export const View = copyComponentProperties(
     return useElement(AnimatedView, styled, {
       ...styled.props,
       ...p,
+      onLayout: (event: any) => {
+        StyleRegistry.updateComponentLayout(componentId, event.nativeEvent.layout);
+        p.onLayout?.(event);
+      },
       className: undefined,
       ...styled.importantProps,
       ref,

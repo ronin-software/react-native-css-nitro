@@ -46,6 +46,14 @@ export class ReferenceRegistry {
   private colorScheme: "light" | "dark" | null = null;
   private componentStates = new Map<string, ComponentState>();
   private componentVars = new Map<string, Record<string, AnyValue>>();
+  private layouts = new Map<
+    string,
+    { x: number; y: number; width: number; height: number }
+  >();
+  private containerScopes = new Map<
+    string,
+    { parent: string; names: Set<string> }
+  >();
 
   private rerenders = new Map<string, () => void>();
 
@@ -71,6 +79,8 @@ export class ReferenceRegistry {
     this.keyframes.clear();
     this.componentStates.clear();
     this.componentVars.clear();
+    this.layouts.clear();
+    this.containerScopes.clear();
     this.rerenders.clear();
     this.window = { width: 0, height: 0, scale: 1, fontScale: 1 };
     this.colorScheme = null;
@@ -142,12 +152,21 @@ export class ReferenceRegistry {
     componentId: string,
     classNames: string,
     variableScope: string,
-    _containerScope: string,
+    containerScope: string,
   ): Declarations {
     const declarations: Declarations = { variableScope };
     const attributeQueries: [string, NonNullable<HybridStyleRule["aq"]>][] = [];
+    const containerNames = new Set<string>();
+    let hasContainers = false;
 
     for (const className of splitClassNames(classNames)) {
+      // Group selectors: a className containing "/" (or "group") names a group
+      // container (NativeWind convention) — checked before the rules lookup so
+      // marker-only group classes register too
+      if (className.includes('/') || className === 'group') {
+        containerNames.add(className);
+        hasContainers = true;
+      }
       const rules = this.styleRuleMap.get(className);
       if (!rules) {
         continue;
@@ -155,6 +174,13 @@ export class ReferenceRegistry {
       for (const rule of rules) {
         if (rule.aq && rule.id) {
           attributeQueries.push([rule.id, rule.aq]);
+        }
+        // Container names declared by this component (container-type)
+        if (rule.c) {
+          for (const name of rule.c) {
+            containerNames.add(name);
+            hasContainers = true;
+          }
         }
         if (rule.v) {
           // Components with variables get their own scope; children inherit
@@ -175,6 +201,16 @@ export class ReferenceRegistry {
       }
     }
 
+    // Register as a named container; children inherit the scope through the
+    // ContainerContext provider chain (C++ parity)
+    if (hasContainers) {
+      this.containerScopes.set(componentId, {
+        parent: containerScope,
+        names: containerNames,
+      });
+      declarations.containerScope = componentId;
+    }
+
     if (attributeQueries.length > 0) {
       declarations.attributeQueries = attributeQueries;
     }
@@ -192,6 +228,7 @@ export class ReferenceRegistry {
     this.rerenders.set(componentId, rerender);
 
     // Collect rules from all classNames that pass their conditions
+    // (container scopes are registered by getDeclarations, called before this)
     const allRules: HybridStyleRule[] = [];
     for (const className of splitClassNames(classNames)) {
       const rules = this.styleRuleMap.get(className);
@@ -199,7 +236,7 @@ export class ReferenceRegistry {
         continue;
       }
       for (const rule of rules) {
-        if (this.testRule(rule, componentId, validAttributeQueries)) {
+        if (this.testRule(rule, componentId, containerScope, validAttributeQueries)) {
           allRules.push(rule);
         }
       }
@@ -315,8 +352,12 @@ export class ReferenceRegistry {
     this.rerenders.get(componentId)?.();
   }
 
-  updateComponentLayout(_componentId: string, _value: unknown): void {
-    // Container queries pass in the reference impl — nothing to store
+  updateComponentLayout(
+    componentId: string,
+    value: { x: number; y: number; width: number; height: number },
+  ): void {
+    this.layouts.set(componentId, { ...value });
+    this.notifyAll();
   }
 
   updateComponentInlineVariables(
@@ -355,6 +396,7 @@ export class ReferenceRegistry {
   private testRule(
     rule: HybridStyleRule,
     componentId: string,
+    containerScope: string,
     validAttributeQueries: string[],
   ): boolean {
     if (rule.aq) {
@@ -377,7 +419,95 @@ export class ReferenceRegistry {
     if (rule.mq && !this.testMedia(rule.mq)) {
       return false;
     }
-    // Container queries (rule.cq) pass — no layout loop in jest
+    if (rule.cq) {
+      for (const cq of rule.cq) {
+        const pass = this.testContainerQuery(cq, containerScope);
+        if (process.env.NW_TRACE) {
+          console.log('CQ test:', JSON.stringify(cq), 'scope:', containerScope, '→', pass, '| scopes:', JSON.stringify([...this.containerScopes.entries()].map(([k, v]) => [k, [...v.names], v.parent])));
+        }
+        if (!pass) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  /** C++ ContainerContext::findInScope parity */
+  private findInScope(
+    containerScope: string,
+    name?: string,
+  ): string | undefined {
+    if (name === undefined) {
+      return containerScope;
+    }
+    const scope = this.containerScopes.get(containerScope);
+    if (!scope) {
+      return undefined;
+    }
+    if (scope.names.has(name)) {
+      return containerScope;
+    }
+    if (scope.parent && scope.parent !== "root") {
+      return this.findInScope(scope.parent, name);
+    }
+    return undefined;
+  }
+
+  private testContainerQuery(
+    cq: NonNullable<HybridStyleRule["cq"]>[number],
+    containerScope: string,
+  ): boolean {
+    const resolved = this.findInScope(containerScope, cq.n);
+    if (resolved === undefined) {
+      return false;
+    }
+    if (!cq.m) {
+      return true;
+    }
+    const layout = this.layouts.get(resolved);
+    if (!layout) {
+      return false;
+    }
+
+    const keys = Object.keys(cq.m).filter((k) => k !== "$$op");
+    if (keys.length === 0) {
+      return true;
+    }
+    for (const feature of keys) {
+      const condition = cq.m[feature];
+      if (!Array.isArray(condition) || condition.length < 2) {
+        return false;
+      }
+      const [op, expected] = condition;
+      if (typeof op !== "string" || typeof expected !== "number") {
+        return false;
+      }
+      const actual =
+        feature === "width"
+          ? layout.width
+          : feature === "height"
+            ? layout.height
+            : undefined;
+      if (actual === undefined) {
+        return false;
+      }
+      const pass =
+        op === "=" || op === "eq"
+          ? actual === expected
+          : op === ">" || op === "gt"
+            ? actual > expected
+            : op === ">=" || op === "gte"
+              ? actual >= expected
+              : op === "<" || op === "lt"
+                ? actual < expected
+                : op === "<=" || op === "lte"
+                  ? actual <= expected
+                  : false;
+      if (!pass) {
+        return false;
+      }
+    }
     return true;
   }
 

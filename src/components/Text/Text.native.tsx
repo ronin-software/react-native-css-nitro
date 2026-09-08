@@ -1,5 +1,5 @@
 import { useId, type ComponentPropsWithRef } from "react";
-import { Text as RNText } from "react-native";
+import { Text as RNText, } from "react-native";
 
 import { createAnimatedComponent } from "react-native-reanimated";
 
@@ -34,6 +34,10 @@ export const Text = copyComponentProperties(
     return useElement(AnimatedText, styled, {
       ...styled.props,
       ...p,
+      onLayout: (event: any) => {
+        StyleRegistry.updateComponentLayout(componentId, event.nativeEvent.layout);
+        p.onLayout?.(event);
+      },
       className: undefined,
       ...styled.importantProps,
       ref,

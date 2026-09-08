@@ -113,6 +113,26 @@ Baseline e2e (NativeWind v5 preview on the upstream JS runtime) is ready to
 run: the v5 branch example app installs cleanly (expo canary, RN 0.80.1) and
 can be verified with the same Maestro/agent-device harness.
 
+## Resolved: darkMode-class selectors
+
+The `selectors` suite (3 tests) requires @cssInterop darkMode-class
+compilation — upstream v5 has this code COMMENTED OUT in
+compiler/selectors.ts and ships all three tests as test.skip. Our skips are
+exact parity, not missing work. Revisit if/when upstream implements it.
+
+## In progress: group propagation
+
+Container scope wiring is DONE (C++ + double): named containers register via
+getDeclarations (rule.c + group className convention), layouts flow through
+updateComponentLayout → ContainerContext, and named-container queries resolve
+(container-queries named test passes with real layout events).
+
+Remaining: group PROPAGATION — the parent registers the "group/item" scope,
+but the memoized child doesn't re-run registerComponent when only its
+inherited containerScope changes (React context change alone doesn't bump the
+useMemo deps). Needs the child to subscribe to container-scope changes
+(re-render on scope change) — 3 grouping tests skipped on this.
+
 ## Next steps
 
 1. Port remaining upstream suites: animations, transitions, calc, box-shadow,

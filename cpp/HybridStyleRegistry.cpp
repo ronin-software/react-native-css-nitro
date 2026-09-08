@@ -140,11 +140,29 @@ namespace margelo::nitro::cssnitro {
 
             const std::vector<HybridStyleRule> &styleRules = styleIt->second->get();
             bool hasVars = false;
+            std::unordered_set<std::string> containerNames;
+            bool hasContainers = false;
             for (const auto &sr: styleRules) {
                 // Check for attribute queries
                 if (sr.aq.has_value() && sr.id.has_value()) {
                     // The style rule id is already a string
                     attributeQueriesVec.emplace_back(sr.id.value(), sr.aq.value());
+                }
+
+                // Container names declared by this component (container-type)
+                if (sr.c.has_value()) {
+                    for (const auto &name: sr.c.value()) {
+                        containerNames.insert(name);
+                        hasContainers = true;
+                    }
+                }
+
+                // Group selectors: a className containing "/" (or "group")
+                // names a group container (NativeWind convention)
+                if (className.find('/') != std::string::npos ||
+                    className == "group") {
+                    containerNames.insert(className);
+                    hasContainers = true;
                 }
 
                 // Check for variables
@@ -174,6 +192,14 @@ namespace margelo::nitro::cssnitro {
             }
             if (hasVars) {
                 declarations.variableScope = componentId;
+            }
+
+            // Register this component as a named container; children inherit
+            // the scope through the ContainerContext provider chain
+            if (hasContainers) {
+                ContainerContext::setScope(componentId, containerScope,
+                                           containerNames);
+                declarations.containerScope = componentId;
             }
         }
 
