@@ -61,10 +61,12 @@ export function inlineVariablesWithSingleUsage(
             }
           }
           if (conditional) {
-            const block = rule.value.declarations;
+            const block = rule.value.declarations as
+              | typeof rule.value.declarations
+              | undefined;
             for (const declaration of [
-              ...(block.declarations ?? []),
-              ...(block.importantDeclarations ?? []),
+              ...(block?.declarations ?? []),
+              ...(block?.importantDeclarations ?? []),
             ]) {
               if (declaration.property === "custom") {
                 conditionalVars.add(declaration.value.name);

@@ -1,9 +1,9 @@
 import { PixelRatio } from "react-native";
 
 import { act, render, screen } from "@testing-library/react-native";
+
 import { View } from "../../components/View";
 import { registerCSS, registry, testID } from "../../jest";
-
 
 jest.mock("react-native", () => {
   const RN = jest.requireActual("react-native");
@@ -76,8 +76,7 @@ test("width (plain)", () => {
   });
 
   act(() => {
-    registry.setDimensions({width: 500,
-    });
+    registry.setDimensions({ width: 500 });
   });
 
   expect(component.props.style).toStrictEqual({
@@ -101,7 +100,7 @@ test("width (range)", () => {
   });
 
   act(() => {
-    registry.setDimensions({width: 500 });
+    registry.setDimensions({ width: 500 });
   });
 
   expect(component.props.style).toStrictEqual({
@@ -125,8 +124,7 @@ test("min-width", () => {
   });
 
   act(() => {
-    registry.setDimensions({width: 300,
-    });
+    registry.setDimensions({ width: 300 });
   });
 
   expect(component.props.style).toStrictEqual({
@@ -150,8 +148,7 @@ test("max-width", () => {
   });
 
   act(() => {
-    registry.setDimensions({width: 300,
-    });
+    registry.setDimensions({ width: 300 });
   });
 
   expect(component.props.style).toStrictEqual({
@@ -168,8 +165,7 @@ test("not all", () => {
 }`);
   // Make larger than 640
   act(() => {
-    registry.setDimensions({width: 1000,
-    });
+    registry.setDimensions({ width: 1000 });
   });
 
   render(<View testID={testID} className="my-class" />);
@@ -179,8 +175,7 @@ test("not all", () => {
 
   // Make smaller than 640
   act(() => {
-    registry.setDimensions({width: 300,
-    });
+    registry.setDimensions({ width: 300 });
   });
 
   expect(component.props.style).toStrictEqual({

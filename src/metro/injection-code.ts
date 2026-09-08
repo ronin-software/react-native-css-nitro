@@ -25,7 +25,9 @@ export function getNativeInjectionCode(
     .join("\n");
 
   const contents = values
-    .map((value) => `getStyleRegistry().addStyleSheet(${JSON.stringify(value)});`)
+    .map(
+      (value) => `getStyleRegistry().addStyleSheet(${JSON.stringify(value)});`,
+    )
     .join("\n");
 
   return Buffer.from(

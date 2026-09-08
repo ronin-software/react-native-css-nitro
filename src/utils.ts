@@ -72,7 +72,6 @@ export function mergeStylesWithInline(
       : [styled.importantStyle]),
   ].filter((layer) => Boolean(layer) && !isEmptyPlainObject(layer));
 
-
   // Important beats everything: one resolved object
   if (styled.importantStyle) {
     const merged: Record<string, any> = {};
@@ -97,7 +96,8 @@ export function mergeStylesWithInline(
       !(Array.isArray(layer) && layer.length === 0) &&
       !isEmptyPlainObject(layer),
   );
-  const hasInline = !userIsEmptyArray && inlineLayers.length > 0;  if (classNameLayers.length === 0) {
+  const hasInline = !userIsEmptyArray && inlineLayers.length > 0;
+  if (classNameLayers.length === 0) {
     // All inline values filtered out → no style
     const hasLiteral = inlineLayers.some((layer) => {
       if (layer === undefined || layer === null || isEmptyPlainObject(layer)) {
@@ -134,8 +134,7 @@ export function mergeStylesWithInline(
   // className layer (conflicting keys included — inline wins by array order)
   // and append the inline layers
   const hasNonConflictingKeys = classNameLayers.some(
-    (layer) =>
-      layer && Object.keys(layer).some((key) => !inlineKeys.has(key)),
+    (layer) => layer && Object.keys(layer).some((key) => !inlineKeys.has(key)),
   );
 
   const merged: Record<string, any> = {};

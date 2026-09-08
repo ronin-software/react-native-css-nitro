@@ -1,7 +1,7 @@
 import { View as RNView } from "react-native";
 
 import { render } from "@testing-library/react-native";
-import { copyComponentProperties } from "../../utils";
+
 import { FlatList } from "../../components/FlatList";
 import { ScrollView } from "../../components/ScrollView";
 import { Text } from "../../components/Text";
@@ -12,6 +12,7 @@ import {
   type StyledConfiguration,
   type StyledProps,
 } from "../../native";
+import { copyComponentProperties } from "../../utils";
 
 test("className with inline style props should coexist when different properties", () => {
   registerCSS(`.text-red { color: red; }`);

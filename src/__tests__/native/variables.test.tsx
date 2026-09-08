@@ -2,9 +2,10 @@ import { memo, useEffect } from "react";
 import type { ViewProps } from "react-native";
 
 import { render, screen } from "@testing-library/react-native";
-import { styled, VariableContextProvider } from "../../runtime";
+
 import { View } from "../../components/View";
 import { registerCSS, testID } from "../../jest";
+import { styled, VariableContextProvider } from "../../runtime";
 
 test("inline variable", () => {
   registerCSS(`.my-class { width: var(--my-var); --my-var: 10px; }`);

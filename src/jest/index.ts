@@ -11,8 +11,8 @@
 import { Dimensions } from "react-native";
 
 import { compile, type CompilerOptions } from "../compiler";
-import { ReferenceRegistry } from "./reference-registry";
 import { setStyleRegistry } from "../specs/StyleRegistry";
+import { ReferenceRegistry } from "./reference-registry";
 
 export const testID = "react-native-css";
 

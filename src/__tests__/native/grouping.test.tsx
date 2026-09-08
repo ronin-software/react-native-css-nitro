@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react-native";
+
 import { View } from "../../components/View";
 import { registerCSS } from "../../jest";
 
@@ -9,7 +10,7 @@ const childID = "child";
 
 jest.useFakeTimers();
 
-    test("groups", () => {
+test("groups", () => {
   registerCSS(`
     .group\\/item .my-class {
       color: red;
@@ -35,7 +36,7 @@ jest.useFakeTimers();
   expect(component.props.style).toStrictEqual(undefined);
 });
 
-    test("group - active", () => {
+test("group - active", () => {
   registerCSS(
     `.group\\/item:active .my-class {
       background-color: red;
@@ -97,7 +98,7 @@ test.skip("group - active (animated)", () => {
   // });
 });
 
-    test("group selector", () => {
+test("group selector", () => {
   registerCSS(
     `.my-a.my-b .my-class {
       color: red;

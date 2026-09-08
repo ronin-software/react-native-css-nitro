@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-deprecated */
 import { render, screen } from "@testing-library/react-native";
+
 import { View } from "../../components/View";
 import { registerCSS, testID } from "../../jest";
 import { vars } from "../../runtime";

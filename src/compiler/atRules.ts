@@ -59,9 +59,13 @@ export function maybeMutateReactNativeOptions(
     return;
   }
 
-  if (rule.type === "custom" && rule.value.name === "react-native") {
-    // @react-native { darkMode: dark; }
-    const body = rule.value.body as
+  if (
+    rule.type === "custom" &&
+    (rule.value as { name: string }).name === "react-native"
+  ) {
+    // @react-native { darkMode: dark; } — lightningcss types rule.value.name
+    // as the literal already, so re-checking it is redundant
+    const body = (rule.value as { body?: unknown }).body as
       | { type: "declaration-list"; value: { declarations?: Declaration[] } }
       | undefined;
     const declarations = body?.value.declarations ?? [];

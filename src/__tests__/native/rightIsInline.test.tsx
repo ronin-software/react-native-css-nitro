@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * In these tests, we intentionally pass invalid style values (objects with VAR_SYMBOL)
  * to test that the runtime filtering works correctly. We use `as any` to bypass
@@ -10,6 +9,7 @@
  */
 
 import { render } from "@testing-library/react-native";
+
 import { Text } from "../../components/Text";
 import { View } from "../../components/View";
 import { registerCSS, testID } from "../../jest";
@@ -747,7 +747,8 @@ describe("rightIsInline - Red Team Edge Cases", () => {
       ? component.props.style.flat()
       : [component.props.style];
     const hasOpacity = flatStyle.some(
-      (s: unknown): boolean => s !== null && typeof s === "object" && "opacity" in s,
+      (s: unknown): boolean =>
+        s !== null && typeof s === "object" && "opacity" in s,
     );
     expect(hasOpacity).toBe(true);
   });
@@ -839,7 +840,7 @@ describe("rightIsInline - Red Team Edge Cases", () => {
     const numericKeys = {
       "0": "value0",
       "1": "value1",
-      "color": "red",
+      color: "red",
     };
 
     const component = render(

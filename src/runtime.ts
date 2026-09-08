@@ -3,11 +3,18 @@
  * and `vars`. Ports the upstream contract onto this repo's runtime
  * (`useStyledProps` + the C++ StyleRegistry).
  */
-import { createElement, useContext, useMemo, use, type ComponentType, type ReactNode } from "react";
+import {
+  createElement,
+  use,
+  useContext,
+  useMemo,
+  type ComponentType,
+  type ReactNode,
+} from "react";
 
 import { ContainerContext, VariableValuesContext } from "./native/contexts";
-import { getStyleRegistry } from "./specs/StyleRegistry";
 import { useStyledProps } from "./native/useStyled";
+import { getStyleRegistry } from "./specs/StyleRegistry";
 import { mergeStylesWithInline, stripStyleMarkers } from "./utils";
 
 /** Marks an object produced by vars() as inline variable declarations */
@@ -22,10 +29,10 @@ export interface StyledOptions {
   passThrough?: boolean;
 }
 
-export type Config = {
+export interface Config {
   source: string;
   target: string[] | string | false;
-};
+}
 
 /** Port of upstream mappingToConfig: {className: "style"} → configs */
 export function mappingToConfig(mapping: StyledConfiguration): Config[] {
@@ -79,7 +86,6 @@ export type StyledProps<P, M extends StyledConfiguration> = P & {
     : never]?: string;
 };
 
-
 /**
  * Upstream pass-through: no registry, no React state — the className is
  * appended to the target style AFTER the inline styles, so inline wins.
@@ -87,9 +93,11 @@ export type StyledProps<P, M extends StyledConfiguration> = P & {
  */
 export function usePassthrough(
   type: ComponentType<any>,
-  { ...props }: Record<string, any>,
+  props: Record<string, any>,
   configs: Config[],
 ) {
+  // A fresh copy per render — the caller's props object is never mutated
+  props = { ...props };
   for (const config of configs) {
     let { source, target } = config;
 
@@ -100,7 +108,9 @@ export function usePassthrough(
       [Symbol.for("react-native-css.inline-rule")]: classNames,
     };
 
-    delete props[source];
+    props = Object.fromEntries(
+      Object.entries(props).filter(([key]) => key !== source),
+    );
 
     if (classNames === undefined || target === false) {
       continue;
@@ -143,25 +153,22 @@ export function usePassthrough(
  */
 export function useStyledComponent(
   type: ComponentType<any>,
-  props: Record<string, any>,
+  initialProps: Record<string, any>,
   configs: Config[],
 ) {
+  const props = initialProps;
   const active = configs.filter((c) => c.target !== false);
+  // configs are static per call site — ids are stable for the mount lifetime
   const componentId = useMemo(
-    () =>
-      active.map(() => `styled-${Math.random().toString(36).slice(2)}`),
-    // configs are static per call site
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    () => active.map(() => `styled-${Math.random().toString(36).slice(2)}`),
     [],
   );
-
 
   // One styled resolution per active config (multi-target support:
   // FlatList's className/contentContainerClassName/etc.)
   const styledResults = active.map((config, i) => {
-    const source = config.source;
-    const className = source === undefined ? undefined : props[source];
-    const styled = useStyledProps(componentId[i]!, className, props);
+    const className = props[config.source];
+    const styled = useStyledProps(componentId[i] ?? "", className, props);
     return { config, styled };
   });
 
@@ -170,15 +177,15 @@ export function useStyledComponent(
   // component with the resolved values.
 
   // Build the output props; consumed className sources are removed
-  const out: Record<string, any> = { ...props };
-  for (const config of active) {
-    delete out[config.source];
-  }
+  const consumed = new Set(active.map((config) => config.source));
+  const out: Record<string, any> = Object.fromEntries(
+    Object.entries(props).filter(([key]) => !consumed.has(key)),
+  );
 
   for (const { config, styled } of styledResults) {
     const target = Array.isArray(config.target)
-      ? (config.target[config.target.length - 1] as string)
-      : (config.target as string);
+      ? (config.target[config.target.length - 1] ?? "")
+      : config.target;
     if (!target) {
       continue;
     }
@@ -206,17 +213,22 @@ export function VariableContextProvider(props: {
     () => ({ ...inherited, ...props.value }),
     [inherited, props.value],
   );
-  return createElement(VariableValuesContext.Provider, { value }, props.children);
+  return createElement(
+    VariableValuesContext.Provider,
+    { value },
+    props.children,
+  );
 }
 
 /**
  * styled() HOC: wraps a base component and applies styles from className.
  * Mirrors upstream's react-native-css `styled` contract.
  */
-export function styled<
-  const C extends ComponentType<any>,
-  const M extends StyledConfiguration,
->(baseComponent: C, mapping: M = { className: "style" } as unknown as M, options?: StyledOptions) {
+export function styled<const M extends StyledConfiguration>(
+  baseComponent: ComponentType<any>,
+  mapping: M = { className: "style" } as unknown as M,
+  options?: StyledOptions,
+) {
   const configs = mappingToConfig(mapping);
 
   if (options?.passThrough) {
@@ -251,25 +263,25 @@ export function useUnstableNativeVariable(name: string): unknown {
 /**
  * Applies styles to an existing element's props (the babel-plugin entry).
  */
-export function useCssElement<
-  const C extends ComponentType<any>,
-  const M extends StyledConfiguration,
->(
-  component: C,
+export function useCssElement<const M extends StyledConfiguration>(
+  component: ComponentType<any>,
   incomingProps: Record<string, any>,
   mapping: M = { className: "style" } as unknown as M,
 ) {
   const configs = mappingToConfig(mapping);
-  const element = component as { type?: ComponentType<any>; props?: Record<string, any> };
-  const type = (element.type ?? component) as ComponentType<any>;
+  const element = component as {
+    type?: ComponentType<any>;
+    props?: Record<string, any>;
+  };
+  const type = element.type ?? component;
   const baseProps = element.props ?? {};
   const props = { ...baseProps, ...incomingProps };
   return useStyledComponent(type, props, configs);
 }
 
-function getDisplayName(component: ComponentType<any> | unknown): string {
+function getDisplayName(component: unknown): string {
   const c = component as { displayName?: string; name?: string };
-  return c?.displayName ?? c?.name ?? "unknown";
+  return c.displayName ?? c.name ?? "unknown";
 }
 
 export { useColorScheme } from "./native/useColorScheme";

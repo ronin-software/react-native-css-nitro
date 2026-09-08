@@ -22,7 +22,16 @@ test("calc with var survives as an fn tuple", () => {
         {
           d: {
             width: [
-              ["fn", "calc", ["fn", "sum", ["fn", "var", "width"], ["fn", "product", -1, 10]]],
+              [
+                "fn",
+                "calc",
+                [
+                  "fn",
+                  "sum",
+                  ["fn", "var", "width"],
+                  ["fn", "product", -1, 10],
+                ],
+              ],
             ],
           },
         },

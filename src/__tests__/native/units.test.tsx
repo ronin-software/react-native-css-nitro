@@ -1,9 +1,9 @@
 import { View } from "react-native";
 
 import { act, renderHook } from "@testing-library/react-native";
+
 import { registerCSS } from "../../jest";
 import { useNativeCss } from "../../native";
-
 import { dimensions, vh, vw } from "../../native/reactivity";
 
 function current(result: { current: unknown }): any {

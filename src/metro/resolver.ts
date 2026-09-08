@@ -30,7 +30,12 @@ export function nativeResolver(
   );
 
   if (process.env.RN_CSS_TRACE) {
-    console.error("[rn-css-resolver]", moduleName, "from", context.originModulePath?.replace("/Users/dscanlon/", ""));
+    console.error(
+      "[rn-css-resolver]",
+      moduleName,
+      "from",
+      context.originModulePath.replace("/Users/dscanlon/", ""),
+    );
   }
   if (isInternal || resolution.type !== "sourceFile" || isReactNativeIndex) {
     return resolution;

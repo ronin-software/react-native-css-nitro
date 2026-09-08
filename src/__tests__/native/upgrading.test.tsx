@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react-native";
+
 import { Text } from "../../components/Text";
 import { View } from "../../components/View";
 import { registerCSS } from "../../jest";
@@ -17,8 +18,8 @@ beforeEach(() => {
 });
 
 // TODO: blocked on ContainerContext::setScope wiring (group selectors compile
-  // to container queries)
-  test.skip("adding a group", () => {
+// to container queries)
+test.skip("adding a group", () => {
   registerCSS(
     `.group .my-class {
       color: red;
@@ -49,8 +50,8 @@ beforeEach(() => {
 });
 
 // TODO: blocked on ContainerContext::setScope wiring (group selectors compile
-  // to container queries)
-  test.skip("will-change-container", () => {
+// to container queries)
+test.skip("will-change-container", () => {
   registerCSS(
     `.group .my-class {
       color: red;

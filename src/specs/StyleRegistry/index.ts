@@ -86,7 +86,8 @@ const PLATFORMS: Partial<Record<string, string>> = {
 export function initializeEnvironment(registry: StyleRegistryApi): void {
   const os = Platform.OS;
   registry.setPlatform(PLATFORMS[os] ?? os);
-  const scheme = Appearance.getColorScheme() as string | null;
+  // RN's scheme can be null at runtime despite the static type
+  const scheme = Appearance.getColorScheme() as string | null | undefined;
   registry.setColorScheme(scheme ?? "");
   Appearance.addChangeListener((event) => {
     registry.setColorScheme(event.colorScheme ?? "");

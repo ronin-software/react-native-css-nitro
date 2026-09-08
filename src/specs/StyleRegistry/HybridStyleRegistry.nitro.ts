@@ -63,17 +63,11 @@ export interface StyleRegistry
     inlineStyleKeys: string[],
   ): void;
   /** Inline variables set via vars() — resolved against this component's scope */
-  updateComponentInlineVariables(
-    componentId: string,
-    variables: AnyMap,
-  ): void;
+  updateComponentInlineVariables(componentId: string, variables: AnyMap): void;
   updateComponentLayout(componentId: string, value: LayoutRectangle): void;
   /** Published component props — group children evaluate attribute queries
    * against their container's attributes */
-  updateComponentAttributes(
-    componentId: string,
-    attributes: AnyMap,
-  ): void;
+  updateComponentAttributes(componentId: string, attributes: AnyMap): void;
   updateComponentState(
     componentId: string,
     type: PseudoClassType,

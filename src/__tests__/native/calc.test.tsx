@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react-native";
+
 import { View } from "../../components/View";
 import { registerCSS, testID } from "../../jest";
 
@@ -13,8 +14,8 @@ test("calc(10px + 100px)", () => {
   const component = screen.getByTestId(testID);
 
   expect(component.props.style).toStrictEqual({
-      width: 110,
-    });
+    width: 110,
+  });
 });
 
 test("calc(100% - 30px)", () => {
@@ -43,9 +44,9 @@ test("calc(2em * 3)", () => {
   const component = screen.getByTestId(testID);
 
   expect(component.props.style).toStrictEqual({
-      width: 20,
-      fontSize: 5,
-    });
+    width: 20,
+    fontSize: 5,
+  });
 });
 
 test("calc(2rem * 5)", () => {
@@ -59,8 +60,8 @@ test("calc(2rem * 5)", () => {
   const component = screen.getByTestId(testID);
 
   expect(component.props.style).toStrictEqual({
-      width: 140,
-    });
+    width: 140,
+  });
 });
 
 test("calc(var(--variable) + 20px)", () => {
@@ -75,8 +76,8 @@ test("calc(var(--variable) + 20px)", () => {
   const component = screen.getByTestId(testID);
 
   expect(component.props.style).toStrictEqual({
-      width: 120,
-    });
+    width: 120,
+  });
 });
 
 test("calc(var(--percent) + 20%)", () => {
@@ -91,8 +92,8 @@ test("calc(var(--percent) + 20%)", () => {
   const component = screen.getByTestId(testID);
 
   expect(component.props.style).toStrictEqual({
-      width: "30%",
-    });
+    width: "30%",
+  });
 });
 
 test("calc(var(--variable) + 20%)", () => {
@@ -143,8 +144,8 @@ test("calc & colors", () => {
   const component = screen.getByTestId(testID);
 
   expect(component.props.style).toStrictEqual({
-      backgroundColor: "#9efa9e",
-    });
+    backgroundColor: "#9efa9e",
+  });
 });
 
 test("infinity", () => {

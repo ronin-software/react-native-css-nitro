@@ -9,6 +9,7 @@ export const colorScheme = {
   },
   set(value: ColorSchemeName): void {
     Appearance.setColorScheme(value);
-    getStyleRegistry().setColorScheme(value ?? "");
+    // "unspecified" is the closest match for the registry's "" (no scheme)
+    getStyleRegistry().setColorScheme(value);
   },
 };

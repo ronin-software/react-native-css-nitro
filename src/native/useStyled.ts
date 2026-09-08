@@ -222,14 +222,12 @@ export function useStyledProps(
       }
     }
   }
+  const joined =
+    extraClassNames.length > 0 ? extraClassNames.join(" ") : undefined;
   const effectiveClassName =
     className && extraClassNames.length
       ? `${className} ${extraClassNames.join(" ")}`
-      : className !== undefined
-        ? className
-        : extraClassNames.length > 0
-          ? extraClassNames.join(" ")
-          : undefined;
+      : (className ?? joined);
 
   const inlineVarsKey = JSON.stringify(inlineVariables);
   useEffect(() => {
@@ -355,7 +353,7 @@ export function useStyledProps(
   const isGroupContainer =
     containerScope === componentId &&
     (declarations.containerScope !== undefined ||
-      originalProps.className?.includes("/"));
+      originalProps.className?.includes("/") === true);
   const hasPseudo =
     (declarations.active ?? false) ||
     (declarations.hover ?? false) ||
