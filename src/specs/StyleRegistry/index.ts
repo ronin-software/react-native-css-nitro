@@ -89,7 +89,7 @@ export function initializeEnvironment(registry: StyleRegistryApi): void {
   // RN's scheme can be null at runtime despite the static type
   const scheme = Appearance.getColorScheme() as string | null | undefined;
   registry.setColorScheme(scheme ?? "");
-  Appearance.addChangeListener((event) => {
+  Appearance.addChangeListener((event: { colorScheme: string | null }) => {
     registry.setColorScheme(event.colorScheme ?? "");
   });
 }
