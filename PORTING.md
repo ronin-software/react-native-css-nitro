@@ -101,6 +101,12 @@ Findings from device verification:
 - Nitrogen generated TRUE/FALSE enum names colliding with ObjC macros —
   attribute-query wire values renamed to present/absent.
 
+- **NativeWind v5 example re-verified** (after dark mode, group selectors,
+  filters, safe-area, View prop fidelity, and the shadow-write default): the
+  full metro → nativewind → compiler → CssNitro pipeline renders the
+  nativewind repo's example (text-green-500 via variables, flex centering,
+  tabular-nums) on device — evidence `verification/v4-nativewind-v5.png`.
+
 ## NativeWind integration map
 
 NativeWind v5 preview (nativewind@5.0.0-preview.4, branch `v5`) peer-depends
