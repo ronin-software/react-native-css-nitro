@@ -3,9 +3,10 @@
  * and `vars`. Ports the upstream contract onto this repo's runtime
  * (`useStyledProps` + the C++ StyleRegistry).
  */
-import { createElement, useContext, useMemo, type ComponentType, type ReactNode } from "react";
+import { createElement, useContext, useMemo, use, type ComponentType, type ReactNode } from "react";
 
-import { VariableValuesContext } from "./native/contexts";
+import { ContainerContext, VariableValuesContext } from "./native/contexts";
+import { getStyleRegistry } from "./specs/StyleRegistry";
 import { useStyledProps } from "./native/useStyled";
 import { mergeStylesWithInline, stripStyleMarkers } from "./utils";
 
@@ -229,6 +230,22 @@ export function styled<
     useStyledComponent(baseComponent, props, configs);
   StyledComponent.displayName = `CssInterop.${getDisplayName(baseComponent)}`;
   return StyledComponent;
+}
+
+/**
+ * Reads a CSS variable's resolved value for the current variable scope.
+ * Upstream-parity API (native side); re-renders when the value changes.
+ */
+export function useUnstableNativeVariable(name: string): unknown {
+  if (name.startsWith("--")) {
+    name = name.slice(2);
+  }
+  const scope = use(ContainerContext);
+  const registry = getStyleRegistry() as {
+    getVariableValue?: (scope: string, name: string) => unknown;
+  };
+  // Reads are snapshot-only for now: no per-variable observable subscription
+  return registry.getVariableValue?.(scope, name);
 }
 
 /**

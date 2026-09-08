@@ -7,6 +7,7 @@ export { getStyleRegistry, setStyleRegistry } from "./specs/StyleRegistry";
 export {
   styled,
   useCssElement,
+  useUnstableNativeVariable,
   vars,
   usePassthrough,
   VAR_SYMBOL,

@@ -1,8 +1,6 @@
 import { useId, type ComponentPropsWithRef } from "react";
 import { Text as RNText, } from "react-native";
 
-import { createAnimatedComponent } from "react-native-reanimated";
-
 import { useElement } from "../../native/useElement";
 import { useDualRefs } from "../../native/useRef";
 import { useStyledProps } from "../../native/useStyled";
@@ -13,7 +11,7 @@ import {
   mergeStylesWithInline,
 } from "../../utils";
 
-const AnimatedText = createAnimatedComponent(RNText);
+const AnimatedText = RNText;
 
 export const Text = copyComponentProperties(
   RNText,

@@ -1,7 +1,5 @@
 import { useId, type ComponentProps } from "react";
-import { Pressable, } from "react-native";
-
-import { createAnimatedComponent } from "react-native-reanimated";
+import { Pressable } from "react-native";
 
 import { useElement } from "../../native/useElement";
 import { useDualRefs } from "../../native/useRef";
@@ -13,7 +11,7 @@ import {
   mergeStylesWithInline,
 } from "../../utils";
 
-const AnimatedView = createAnimatedComponent(Pressable);
+const AnimatedView = Pressable;
 
 export const View = copyComponentProperties(
   AnimatedView,

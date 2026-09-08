@@ -22,6 +22,8 @@ Pod::Spec.new do |s|
   s.exclude_files = [
     # Native test harness + its staged headers shadow the real NitroModules
     "cpp/tests/**/*",
+    # Benchmarks are standalone cmake targets, not app sources
+    "cpp/bench/**/*",
   ]
 
   s.dependency 'React-jsi'

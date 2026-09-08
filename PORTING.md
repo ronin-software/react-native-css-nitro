@@ -133,6 +133,43 @@ inherited containerScope changes (React context change alone doesn't bump the
 useMemo deps). Needs the child to subscribe to container-scope changes
 (re-render on scope change) — 3 grouping tests skipped on this.
 
+## Milestone: NativeWind v5 example app runs on the C++ runtime
+
+Verified e2e on the iPhone 17 Pro simulator (Release build): the nativewind
+repo's own example app (Expo 54 canary / RN 0.80.1) renders through the full
+metro plugin -> compiler -> CssNitro pod pipeline. Centering classes apply,
+tabular-nums applies, and var-based colors (text-green-500 -> vr root var)
+resolve on device.
+
+Integration setup (nativewind repo, local): react-native-css symlinked to the
+nitro repo; example links CssNitro + react-native-nitro-modules via yarn
+portals for autolinking/codegen; Pods added by expo autolinking. Example-side
+workarounds for the canary pairing: FormData stub polyfill (Hermes RN 0.80),
+InitializeCore import in index.js (old-arch core setup), reanimated/worklets
+blocked (their init crashes; our components no longer hard-require reanimated),
+fmt bumped to 11.2.0 (Xcode 26.5 consteval regression), nativewind theme
+plugin import disabled in example global.css (plugin build crashes tailwind
+silently — see nativewind#compatibility-audit).
+
+Bugs found & fixed on the way (test-first, doctest):
+1. View/Text hard-required react-native-reanimated — upstream peer-dep only;
+   removed (AnimatedView/AnimatedText = plain components)
+2. metro resolver isFromThisModule checked dist/src but we ship lib/ — our own
+   components' react-native imports redirected to themselves (cycle). Now
+   excludes the whole package root.
+3. C++ VariableContext::getVariable never fell back to the root scope for
+   scopes outside the context chain (first resolve pass found nothing AND
+   never subscribed to the root observable)
+4. C++ top-level variable unwrap didn't handle the compiler's one-element
+   value lists (vr: {green: [{v: ["#00c758"]}]}) — color stayed an array
+5. StyledComputedFactory lambda captured inlineVariables without listing it;
+   HybridStyleRegistry used inlineVarsObs before declaration (never compiled
+   since the vars() feature landed — stale DerivedData masked both)
+6. package.json exports: missing "./components" subpath, missing types
+   condition, invalid non-"./" target silently disabled the whole exports map
+7. useUnstableNativeVariable added to runtime (snapshot reads)
+8. podspec excluded cpp/bench from app builds
+
 ## Next steps
 
 1. Port remaining upstream suites: animations, transitions, calc, box-shadow,

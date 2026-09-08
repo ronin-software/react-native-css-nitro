@@ -37,7 +37,7 @@ namespace margelo::nitro::cssnitro {
         auto shadowUpdatesPtr = &shadowUpdates;
 
         auto computed = reactnativecss::Computed<Styled *>::create(
-                [&styleRuleMap, classNames, componentId, rerender, shadowUpdatesPtr, variableScope, containerScope, validAttributeQueries](
+                [&styleRuleMap, classNames, componentId, rerender, shadowUpdatesPtr, variableScope, containerScope, validAttributeQueries, inlineVariables](
                         Styled *const &prev,
                         typename reactnativecss::Effect::GetProxy &get) {
                     Styled *next = new Styled{};

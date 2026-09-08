@@ -841,6 +841,11 @@ export class ReferenceRegistry {
     return fallback === undefined ? (undefined as unknown as AnyValue) : this.resolveValue(fallback, variableScope);
   }
 
+  /** Public read for useUnstableNativeVariable (no reactivity guarantees) */
+  getVariableValue(scope: string, name: string): AnyValue | undefined {
+    return this.getVariable(scope, name);
+  }
+
   private getVariable(scope: string, name: string): AnyValue | undefined {
     const raw =
       this.scopedVariables.get(scope)?.get(name) ??

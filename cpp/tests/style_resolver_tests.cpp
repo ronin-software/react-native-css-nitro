@@ -392,3 +392,22 @@ TEST_CASE("applyStyleMapping passes non-transform props through") {
     CHECK(style->getDouble("opacity") == 0.5);
     CHECK_FALSE(style->contains("transform"));
 }
+
+TEST_CASE("component-scope v-rules still resolve root-level vars") {
+    // Device regression: a tailwind rule like .text-green-500 carries BOTH a
+    // declaration referencing var(--color-green-500) AND a v block (inline
+    // variable). The v block flips the component's variable scope to the
+    // component id — the var must still resolve from the root scope.
+    auto get = makeGet();
+
+    VariableContext::setTopLevelVariable(
+        "root", "color-green-500",
+        AnyValue(AnyArray{AnyObject{{"v", AnyValue(AnyArray{"#00c758"})}}}));
+
+    AnyArray fnValue = {"fn", "var", AnyValue(std::string("color-green-500"))};
+    AnyValue resolved = StyleResolver::resolveStyle(
+        AnyValue(std::move(fnValue)), "component-1", get);
+
+    // Resolves to the hex string, which downstream processColor handles
+    CHECK(std::get<std::string>(resolved) == "#00c758");
+}

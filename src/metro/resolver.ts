@@ -10,13 +10,11 @@ import type {
 
 const allowedModules = new Set(["Text"]);
 
-const thisModuleDist = resolve(__dirname, "../../../dist");
-const thisModuleSrc = resolve(__dirname, "../../../src");
+// Package root — covers src/, lib/, dist/ (upstream only shipped dist)
+const thisModuleRoot = resolve(__dirname, "../../..");
 
 function isFromThisModule(filename: string): boolean {
-  return (
-    filename.startsWith(thisModuleDist) || filename.startsWith(thisModuleSrc)
-  );
+  return filename.startsWith(thisModuleRoot + sep);
 }
 
 export function nativeResolver(
@@ -31,18 +29,15 @@ export function nativeResolver(
     `${sep}react-native${sep}index.js`,
   );
 
+  if (process.env.RN_CSS_TRACE) {
+    console.error("[rn-css-resolver]", moduleName, "from", context.originModulePath?.replace("/Users/dscanlon/", ""));
+  }
   if (isInternal || resolution.type !== "sourceFile" || isReactNativeIndex) {
     return resolution;
   }
 
   if (moduleName === "react-native") {
     return resolver(context, `react-native-css/components`, platform);
-  } else if (moduleName === "react-native-safe-area-context") {
-    return resolver(
-      context,
-      `react-native-css/components/react-native-safe-area-context`,
-      platform,
-    );
   } else if (
     resolution.filePath.includes(`${sep}react-native${sep}Libraries${sep}`)
   ) {

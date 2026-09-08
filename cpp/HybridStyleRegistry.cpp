@@ -243,6 +243,14 @@ namespace margelo::nitro::cssnitro {
                 existing->second.computed->dispose();
             }
 
+            // Per-component inline variables (vars())
+            std::shared_ptr<reactnativecss::Observable<std::shared_ptr<AnyMap>>>
+                    inlineVarsObs;
+            auto varsIt = componentVariables_.find(componentId);
+            if (varsIt != componentVariables_.end()) {
+                inlineVarsObs = varsIt->second;
+            }
+
             // Build new computed Styled via factory
             computed = ::margelo::nitro::cssnitro::makeStyledComputed(styleRuleMap_, classNames,
                                                                       componentId,
@@ -252,14 +260,6 @@ namespace margelo::nitro::cssnitro {
                                                                       containerScope,
                                                                       validAttributeQueries,
                                                                       inlineVarsObs);
-
-            // Per-component inline variables (vars())
-            std::shared_ptr<reactnativecss::Observable<std::shared_ptr<AnyMap>>>
-                    inlineVarsObs;
-            auto varsIt = componentVariables_.find(componentId);
-            if (varsIt != componentVariables_.end()) {
-                inlineVarsObs = varsIt->second;
-            }
 
             // Store the new computed with its parameters
             computedMap_[componentId] = ComputedEntry{

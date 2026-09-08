@@ -35,6 +35,9 @@ export async function transform(
   };
 
   const css = cssFile.output[0].data.css.code.toString();
+  if (process.env.RN_CSS_TRACE) {
+    console.error("[rn-css-transformer]", filePath, "css bytes:", css.length, "head:", JSON.stringify(css.slice(0, 120)));
+  }
 
   const productionJS = compile(css, {
     ...config.reactNativeCSS,

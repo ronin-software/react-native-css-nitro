@@ -128,6 +128,17 @@ namespace margelo::nitro::cssnitro {
             }
         }
 
+        // 4. Root is the terminal fallback for every scope — component scopes
+        // that haven't been created yet (first resolve pass) still need root
+        // vars, and checking here subscribes the effect to the root
+        // observable so later setTopLevelVariable calls trigger recompute
+        if (key != "root") {
+            result = checkContext("root", name, get);
+            if (result.has_value() && !std::holds_alternative<std::monostate>(result.value())) {
+                return result;
+            }
+        }
+
         // Variable doesn't exist in any context
         return std::nullopt;
     }
@@ -287,6 +298,18 @@ namespace margelo::nitro::cssnitro {
                             // "m" is not set or the media query passed, return the value of "v"
                             auto vIt = obj.find("v");
                             if (vIt != obj.end()) {
+                                // The compiler wraps values in a one-element
+                                // list (e.g. v: ["#00c758"]) — unwrap so plain
+                                // values survive; fn/marker tuples pass through
+                                // resolveStyle untouched
+                                if (std::holds_alternative<AnyArray>(vIt->second)) {
+                                    const auto &inner = std::get<AnyArray>(vIt->second);
+                                    if (inner.size() == 1 &&
+                                        !std::holds_alternative<AnyArray>(inner[0]) &&
+                                        !std::holds_alternative<AnyObject>(inner[0])) {
+                                        return inner[0];
+                                    }
+                                }
                                 return vIt->second;
                             }
                         }

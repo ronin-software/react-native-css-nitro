@@ -6,31 +6,42 @@
   "types": "./lib/typescript/module/src/index.d.ts",
   "exports": {
     ".": {
-      "source": "./src/index.tsx",
       "types": "./lib/typescript/module/src/index.d.ts",
-      "default": "./lib/module/index.js",
-      "import": "./lib/module/index.js"
+      "source": "./src/index.tsx",
+      "import": "./lib/module/index.js",
+      "require": "./lib/commonjs/index.js",
+      "default": "./lib/module/index.js"
+    },
+    "./components": {
+      "source": "./src/components/index.ts",
+      "types": "./lib/typescript/module/src/components/index.d.ts",
+      "require": "./lib/commonjs/components/index.js",
+      "default": "./lib/module/components/index.js"
     },
     "./components/*": {
-      "source": "./src/components/*/index.ts",
       "types": "./lib/typescript/module/src/components/*/index.d.ts",
+      "source": "./src/components/*/index.ts",
+      "require": "./lib/commonjs/components/*/index.js",
       "default": "./lib/module/components/*/index.js"
     },
     "./metro": {
-      "source": "./src/metro/index.ts",
       "types": "./lib/typescript/module/src/metro/index.d.ts",
+      "source": "./src/metro/index.ts",
+      "require": "./lib/commonjs/metro/index.js",
       "default": "./lib/module/metro/index.js"
+    },
+    "./native": {
+      "types": "./lib/typescript/module/src/native/index.d.ts",
+      "source": "./src/native/index.ts",
+      "require": "./lib/commonjs/native/index.js",
+      "default": "./lib/module/native/index.js"
     },
     "./package.json": "./package.json",
     "./runtime": {
-      "source": "./src/runtime.ts",
       "types": "./lib/typescript/module/src/runtime.d.ts",
+      "source": "./src/runtime.ts",
+      "require": "./lib/commonjs/runtime.js",
       "default": "./lib/module/runtime.js"
-    },
-    "./native": {
-      "source": "./src/native/index.ts",
-      "types": "./lib/typescript/module/src/native/index.d.ts",
-      "default": "./lib/module/native/index.js"
     }
   },
   "files": [
@@ -151,7 +162,12 @@
     "transformIgnorePatterns": [
       "node_modules/(?!(react-native|@react-native|react-native-reanimated|react-native-worklets)/)"
     ],
-    "testPathIgnorePatterns": ["<rootDir>/example/node_modules", "<rootDir>/lib/", "<rootDir>/bench/", "<rootDir>/src/__tests__/blocked/"],
+    "testPathIgnorePatterns": [
+      "<rootDir>/example/node_modules",
+      "<rootDir>/lib/",
+      "<rootDir>/bench/",
+      "<rootDir>/src/__tests__/blocked/"
+    ],
     "moduleNameMapper": {
       "^react-native-css/native-internal$": "/Users/dscanlon/nativewind-e2e/react-native-css/src/native-internal/index.ts",
       "^react-native-css/native/(.*)$": "/Users/dscanlon/nativewind-e2e/react-native-css/src/native/$1",

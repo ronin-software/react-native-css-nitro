@@ -156,9 +156,9 @@ export function useStyledProps(
     registry.resumeRender?.();
   });
 
-  if (process.env.NW_TRACE) {
+  if (process.env.NW_TRACE || (globalThis as { __NW_TRACE__?: boolean }).__NW_TRACE__) {
     renderCount.set(instance, (renderCount.get(instance) ?? 0) + 1);
-    console.log('RENDER', componentId, 'x', renderCount.get(instance));
+    console.log('RENDER', componentId, JSON.stringify(className), 'x', renderCount.get(instance));
   }
 
   let variableScope = use(VariableContext);
