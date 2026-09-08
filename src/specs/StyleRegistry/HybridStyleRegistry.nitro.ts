@@ -81,6 +81,9 @@ export interface StyleRegistry
  */
 export interface RawStyleRegistry {
   linkComponent(componentId: string, tag: number): void;
+  /** Re-commit the computed styles into the shadow tree (undo React's stale
+   * commit after a render pass). No-op unless RN_CSS_SHADOW_WRITE is set. */
+  refreshShadowStyles?(componentId: string): void;
   registerExternalMethods(options: { processColor: typeof processColor }): void;
 }
 

@@ -174,14 +174,28 @@ namespace margelo::nitro::cssnitro {
 
                     // Only perform these actions if this is a recompute (prev exists)
                     if (prev != nullptr) {
-                        // Always re-render via React. The shadow-tree
-                        // direct-write path (uiManager.updateShadowTree) is
-                        // unreliable under RN 0.82 Fabric: colors render
-                        // incorrectly and nodes can disappear. Revisit once
-                        // ShadowTreeUpdateManager is fixed against this RN
-                        // version — until then correctness beats the perf win.
-                        (void) shadowUpdatesPtr;
-                        (void) rerender();
+                        // No-op skip: identical computed output needs neither a
+                        // React rerender nor a shadow write (a later React
+                        // commit is corrected by the post-commit refresh)
+                        if (!(*prev == *next)) {
+                            if (ShadowTreeUpdateManager::shadowWritesEnabled() &&
+                                shadowUpdatesPtr->hasComponent(componentId)) {
+                                // Direct shadow-tree write — commits the
+                                // resolved styles straight into the Fabric
+                                // tree without a React render pass
+                                if (next->style.has_value()) {
+                                    shadowUpdatesPtr->addUpdates(
+                                            componentId, next->style.value());
+                                }
+                                if (next->importantStyle.has_value()) {
+                                    shadowUpdatesPtr->addUpdates(
+                                            componentId,
+                                            next->importantStyle.value());
+                                }
+                            } else {
+                                rerender();
+                            }
+                        }
 
                         // Now safe to delete prev
                         delete prev;

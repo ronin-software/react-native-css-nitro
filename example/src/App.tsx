@@ -10,8 +10,9 @@
  *   4. Container queries — same child class, different container widths
  *   5. Compile-time + runtime features (calc, vars, media, shadow, transform)
  */
-import { useState } from "react";
+import { memo, useEffect, useState } from "react";
 
+import { Text as RNText } from "react-native";
 import { Pressable as RNPressable } from "react-native";
 
 import { Text } from "react-native-css-nitro/components/Text";
@@ -28,9 +29,35 @@ import "./e2e.css";
 (globalThis as { __NW_TRACE__?: boolean }).__NW_TRACE__ = true;
 getStyleRegistry();
 
+/**
+ * Standalone counter component: polls the render global with its own state and
+ * renders a bare RN Text — its updates never touch the styled tree.
+ */
+const RenderCounter = memo(function RenderCounter() {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => {
+      const total =
+        (globalThis as { __RN_CSS_RENDERS__?: { total?: number } })
+          .__RN_CSS_RENDERS__?.total ?? 0;
+      setN((prev) => (prev === total ? prev : total));
+    }, 150);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <RNText
+      testID="render-count"
+      style={{ fontSize: 12, color: "#64748b", paddingHorizontal: 20 }}
+    >
+      styled renders: {n}
+    </RNText>
+  );
+});
+
 export default function App() {
   const [dark, setDark] = useState(false);
   const [rawProbe, setRawProbe] = useState(0);
+
 
   const toggleDark = () => {
     const next = !dark;
@@ -75,6 +102,7 @@ export default function App() {
         </Text>
       </View>
 
+      <RenderCounter />
       <Text className="section">Group selectors</Text>
       <View className="group/presscard group-card" testID="group-card">
         <Text className="group-hint">press and hold this card</Text>

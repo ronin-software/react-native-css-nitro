@@ -341,6 +341,29 @@ namespace margelo::nitro::cssnitro {
         return *styledPtr;
     }
 
+    jsi::Value HybridStyleRegistry::refreshShadowStyles(jsi::Runtime &runtime,
+                                                        const jsi::Value &,
+                                                        const jsi::Value *args,
+                                                        size_t count) {
+        if (count < 1 || !args[0].isString()) {
+            return jsi::Value::undefined();
+        }
+        if (!ShadowTreeUpdateManager::shadowWritesEnabled()) {
+            return jsi::Value::undefined();
+        }
+        std::string componentId = args[0].getString(runtime).utf8(runtime);
+        auto it = computedMap_.find(componentId);
+        if (it == computedMap_.end() || !it->second.computed) {
+            return jsi::Value::undefined();
+        }
+        Styled *styled = it->second.computed->get();
+        if (styled == nullptr) {
+            return jsi::Value::undefined();
+        }
+        shadowUpdates_->refresh(componentId, styled->style, styled->importantStyle);
+        return jsi::Value::undefined();
+    }
+
     void HybridStyleRegistry::deregisterComponent(const std::string &componentId) {
         auto it = computedMap_.find(componentId);
         if (it != computedMap_.end()) {
@@ -476,6 +499,11 @@ namespace margelo::nitro::cssnitro {
                     "linkComponent",
                     2,
                     &HybridStyleRegistry::linkComponent);
+
+            prototype.registerRawHybridMethod(
+                    "refreshShadowStyles",
+                    1,
+                    &HybridStyleRegistry::refreshShadowStyles);
 
             prototype.registerRawHybridMethod(
                     "registerExternalMethods",

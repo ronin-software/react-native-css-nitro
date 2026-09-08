@@ -467,6 +467,10 @@ export class ReferenceRegistry {
     // Inline-style interplay is verified against the C++ registry on device
   }
 
+  refreshShadowStyles(_componentId: string): void {
+    // no-op in the double — shadow writes are a native-only path
+  }
+
   linkComponent(_componentId: string, _tag: number): void {
     // Shadow-tree updates don't exist in the reference impl
   }

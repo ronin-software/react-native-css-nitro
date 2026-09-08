@@ -107,8 +107,7 @@ namespace margelo::nitro::cssnitro {
     }
 
     bool ShadowTreeUpdateManager::hasComponent(const std::string &componentId) {
-        auto it = component_links_.find(componentId);
-        return (it == component_links_.end());
+        return component_links_.count(componentId) > 0;
     }
 
     void ShadowTreeUpdateManager::addUpdates(
@@ -128,9 +127,45 @@ namespace margelo::nitro::cssnitro {
             obs = Observable<UpdatesMap>::create(UpdatesMap{});
         }
 
+        if (std::getenv("RN_CSS_TRACE")) {
+            std::string payloadStr = "{";
+            for (const auto &kv: payload.items()) {
+                payloadStr += kv.first.asString() + ":";
+                const auto &v = kv.second;
+                if (v.isString()) payloadStr += v.getString();
+                else if (v.isNumber()) payloadStr += std::to_string(v.asInt());
+                else if (v.isBool()) payloadStr += v.asBool() ? "true" : "false";
+                else payloadStr += "?";
+                payloadStr += ",";
+            }
+            payloadStr += "}";
+            fprintf(stderr, "[rn-css-shadow] tag=%d payload=%s\n",
+                    link.tag, payloadStr.c_str());
+        }
+
         UpdatesMap cur = obs->get();
         cur[link.tag] = std::move(payload);
         obs->set(std::move(cur));
+    }
+
+    bool ShadowTreeUpdateManager::shadowWritesEnabled() {
+        static const bool enabled = std::getenv("RN_CSS_SHADOW_WRITE") != nullptr;
+        return enabled;
+    }
+
+    void ShadowTreeUpdateManager::refresh(
+            const std::string &componentId,
+            const std::optional<std::shared_ptr<::margelo::nitro::AnyMap>> &style,
+            const std::optional<std::shared_ptr<::margelo::nitro::AnyMap>> &importantStyle) {
+        if (!shadowWritesEnabled()) {
+            return;
+        }
+        if (style.has_value()) {
+            addUpdates(componentId, style.value());
+        }
+        if (importantStyle.has_value()) {
+            addUpdates(componentId, importantStyle.value());
+        }
     }
 
     void ShadowTreeUpdateManager::registerProcessColorFunction(jsi::Function &&fn) {
@@ -179,7 +214,12 @@ namespace margelo::nitro::cssnitro {
         if (!result.isNumber()) {
             return value;
         }
-        int processed = static_cast<int>(result.asNumber());
+        // JS processColor returns UNSIGNED 32-bit ARGB (0..4294967295);
+        // Fabric colors are the same bits as signed int32. A direct
+        // double→int cast is UB and saturates on ARM64 (every opaque color
+        // became INT32_MAX — the "colors render incorrectly" bug).
+        auto processed = static_cast<int32_t>(
+                static_cast<uint32_t>(static_cast<int64_t>(result.asNumber())));
         process_color_cache_.emplace(colorStr, processed);
         return {processed};
     }

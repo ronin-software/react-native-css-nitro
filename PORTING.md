@@ -84,10 +84,19 @@ compile-time colors, calc, CSS variables, platform media queries, box-shadow,
 transform, Nitro C++ interop, and the full :active press/release lifecycle.
 
 Findings from device verification:
-- `uiManager.updateShadowTree` (the shadow-tree direct-write path) is broken
-  under RN 0.82 Fabric — colors render incorrectly and nodes disappear. The
-  C++ computed now always re-renders via React instead (correctness over the
-  perf win until ShadowTreeUpdateManager is fixed).
+- `uiManager.updateShadowTree` direct-write is FIXED (RN 0.82 Fabric) and
+  shipped behind `RN_CSS_SHADOW_WRITE=1`. Root cause of "colors render
+  incorrectly": JS `processColor` returns UNSIGNED 32-bit ARGB; the
+  double→int cast in `processColorDynamic` is UB and saturates on ARM64,
+  turning every opaque color into INT32_MAX. Fixed with an explicit
+  uint32→int32 bit-preserving cast. "Nodes disappear" did not reproduce once
+  colors were correct. Design: style-only recomputes write folly::dynamic
+  payloads straight into the shadow tree (no React render); after every
+  React commit, `refreshShadowStyles` re-asserts the computed styles because
+  React re-renders stale JS-cached props. Device-verified: group press
+  causes 0 styled React renders (was 2), pill flips red-700 mid-hold and
+  restores after release; dark toggle, CQ, and e2e flows identical to the
+  React path in both modes.
 - Nitrogen generated TRUE/FALSE enum names colliding with ObjC macros —
   attribute-query wire values renamed to present/absent.
 

@@ -171,6 +171,12 @@ export function useStyledProps(
   originalProps: Record<string, any>,
   isDisabled = false,
 ) {
+  // Instrumentation: every call is one React render of a styled component.
+  // Device e2e reads this to measure the shadow-write path's savings.
+  const renderCounts = (globalThis as { __RN_CSS_RENDERS__?: Record<string, number> });
+  renderCounts.__RN_CSS_RENDERS__ ??= {};
+  renderCounts.__RN_CSS_RENDERS__.total =
+    (renderCounts.__RN_CSS_RENDERS__.total ?? 0) + 1;
   const [instance, rerender] = useReducer(REDUCER, EMPTY_DECLARATIONS);
   const StyleRegistry = getStyleRegistry();
   const registry = StyleRegistry as {
@@ -233,6 +239,15 @@ export function useStyledProps(
   useEffect(() => {
     StyleRegistry.updateComponentInlineVariables(componentId, inlineVariables);
   }, [componentId, inlineVarsKey]);
+
+  // Shadow-write mode skips the React rerender on style changes, so the
+  // JS-rendered props go stale — re-commit the computed styles after every
+  // React commit to undo the stale props React just mounted. No-op unless
+  // RN_CSS_SHADOW_WRITE is set.
+  useEffect(() => {
+    (StyleRegistry as { refreshShadowStyles?: (id: string) => void })
+      .refreshShadowStyles?.(componentId);
+  });
 
   const declarations = effectiveClassName
     ? StyleRegistry.getDeclarations(

@@ -7,6 +7,8 @@
 
 #include <folly/dynamic.h>
 #include <react/renderer/core/ReactPrimitives.h>
+#include <NitroModules/AnyMap.hpp>
+#include <optional>
 
 namespace facebook::jsi {
     class Runtime;
@@ -47,6 +49,16 @@ namespace margelo::nitro::cssnitro {
                         const std::shared_ptr<::margelo::nitro::AnyMap> &styleEntries);
 
         void registerProcessColorFunction(jsi::Function &&fn);
+
+        /** Whether RN_CSS_SHADOW_WRITE opted into the direct-write path */
+        static bool shadowWritesEnabled();
+
+        /** Re-commit a component's current styles — undoes React's stale
+         * commit after a render pass (the JS-rendered props are stale in
+         * shadow mode, since style changes skip the rerender) */
+        void refresh(const std::string &componentId,
+                     const std::optional<std::shared_ptr<AnyMap>> &style,
+                     const std::optional<std::shared_ptr<AnyMap>> &importantStyle);
 
     private:
         friend struct VariantConverter;

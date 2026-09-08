@@ -106,6 +106,10 @@ namespace margelo::nitro::cssnitro {
             std::shared_ptr<reactnativecss::Observable<
                 std::shared_ptr<::margelo::nitro::AnyMap>>>>
                 componentVariables_;
+        jsi::Value refreshShadowStyles(jsi::Runtime &runtime,
+                                       const jsi::Value &thisValue,
+                                       const jsi::Value *args, size_t count);
+
         jsi::Value linkComponent(jsi::Runtime &runtime,
                                  const jsi::Value &thisValue,
                                  const jsi::Value *args, size_t count);
