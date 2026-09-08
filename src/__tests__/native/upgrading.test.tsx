@@ -17,8 +17,9 @@ beforeEach(() => {
   log.mockClear();
 });
 
-// TODO: blocked on ContainerContext::setScope wiring (group selectors compile
-// to container queries)
+// TODO: needs the dev-warning contract — adding a container className
+// post-mount should warn (container was added/removed, state reset). Style
+// resolution itself works; only the console.warn is missing.
 test.skip("adding a group", () => {
   registerCSS(
     `.group .my-class {
@@ -49,9 +50,7 @@ test.skip("adding a group", () => {
   ]);
 });
 
-// TODO: blocked on ContainerContext::setScope wiring (group selectors compile
-// to container queries)
-test.skip("will-change-container", () => {
+test("will-change-container", () => {
   registerCSS(
     `.group .my-class {
       color: red;
