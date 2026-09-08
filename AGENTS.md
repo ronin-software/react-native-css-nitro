@@ -10,7 +10,7 @@ stays TypeScript (this repo has its own, canonical for the 4.0 line); the
 runtime is C++ via Nitro Modules. NativeWind v5 preview consumes the runtime
 API surface — see "NativeWind contract" below.
 
-Branch: `phase-0/test-harness` is the active integration branch. Do not force-push.
+Branch: `v4` is the active integration branch. Do not force-push.
 
 ## Commands
 

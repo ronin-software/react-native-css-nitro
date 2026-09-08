@@ -11,7 +11,7 @@ NativeWind compatibility" until this document and your suite agree.
 Drop-in for the `react-native-css` package name: NativeWind v5's
 metro/compiler/config surfaces keep working; the runtime underneath is native.
 
-- **Repo:** `ronin-software/react-native-css-nitro`, branch `phase-0/test-harness`
+- **Repo:** `ronin-software/react-native-css-nitro`, branch `v4`
   (never force-push). Everything in this doc is on that branch as of `6d90261`.
 - **Quick consume:** `yarn add react-native-css@link:<this-repo>` + the pod
   autolinks (`pod 'CssNitro', :path => <repo>`). `corepack yarn build` before
