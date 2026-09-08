@@ -27,6 +27,21 @@ tests). Verification is layered:
    `StyleRegistry` interface.
 4. **Device e2e** — real C++ via NitroModules, shadow-tree writes, transitions.
 
+## Regression gates
+
+- **Pixel gate** — `yarn verify:device` (scripts/verify-pixels.py): drives the
+  showcase through light/dark/group-press states, samples fixed points over
+  solid backgrounds against `verification/golden-pixels.json` (exact match),
+  and structurally asserts the perf contract: the render-counter text region
+  must be pixel-identical across a group press (text pixels change iff a
+  React render ran) while the pill still turns red. Bless with a manual
+  golden edit after intentional style changes.
+- **Perf gate** — `yarn bench:check` (scripts/bench-check.py): best-of-3
+  bench run compared against `verification/bench-baseline.json`; fails if any
+  workload drops below baseline × 0.7. Re-record per machine with
+  `yarn bench:baseline` (baselines are machine-specific; both suites run
+  locally, not in CI).
+
 ## Findings so far
 
 - `AnyMap::setArray/setObject/setAny` use `emplace` — they silently no-op when

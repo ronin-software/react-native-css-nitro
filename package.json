@@ -83,7 +83,10 @@
     "release": "release-it --only-version",
     "bench:cpp": "cmake -B cpp/tests/build -S cpp/tests -DCMAKE_BUILD_TYPE=Release && cmake --build cpp/tests/build --target css_bench && ./cpp/tests/build/css_bench",
     "bench:js": "jest --config bench/jest.bench.config.js --watchman=false",
-    "bench": "yarn bench:cpp && yarn bench:js"
+    "bench": "yarn bench:cpp && yarn bench:js",
+    "verify:device": "python3 scripts/verify-pixels.py",
+    "bench:check": "python3 scripts/bench-check.py",
+    "bench:baseline": "python3 scripts/bench-check.py --bless"
   },
   "keywords": [
     "react-native",

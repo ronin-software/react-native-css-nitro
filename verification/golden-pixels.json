@@ -1,0 +1,23 @@
+{
+  "comment": "Sampled points over solid backgrounds in the showcase app (iPhone 17 Pro, iOS 26.5, Release). Regenerate with scripts/verify-pixels.py --bless after INTENTIONAL style changes. Points are fractions of the screenshot size; the press state uses the group-child pill.",
+  "light": {
+    "points": {
+      "screen-bg": [0.95, 0.15, [248, 250, 252]],
+      "dark-card-bg": [0.08, 0.36, [241, 245, 249]],
+      "toggle-bg": [0.5, 0.27, [37, 99, 235]],
+      "group-pill-bg": [0.5, 0.513, [226, 232, 240]]
+    }
+  },
+  "dark": {
+    "points": {
+      "screen-bg": [0.95, 0.15, [2, 6, 23]],
+      "dark-card-bg": [0.08, 0.36, [30, 41, 59]],
+      "toggle-bg": [0.5, 0.27, [37, 99, 235]]
+    }
+  },
+  "press": {
+    "points": {
+      "group-pill-active": [0.5, 0.513, [220, 38, 38]]
+    }
+  }
+}

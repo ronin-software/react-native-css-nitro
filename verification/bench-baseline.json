@@ -1,0 +1,20 @@
+{
+  "comment": "Recorded on Dan's M-series Mac. Regenerate with: yarn bench:baseline. The gate fails if any workload drops below baseline * tolerance — tune tolerance for CI machine variance.",
+  "tolerance": 0.7,
+  "cpp": {
+    "sort200": 272926,
+    "merge15rules": 5089059,
+    "varSimple": 15898251,
+    "varChain": 5523336,
+    "calc": 4423800,
+    "composite": 237361
+  },
+  "js": {
+    "sort200": 38371,
+    "merge15rules": 163683,
+    "varSimple": 1765154,
+    "varChain": 1898088,
+    "calc": 214619,
+    "composite": 109385
+  }
+}
