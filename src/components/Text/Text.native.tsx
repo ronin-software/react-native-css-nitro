@@ -34,6 +34,7 @@ export const Text = copyComponentProperties(
     return useElement(AnimatedText, styled, {
       ...styled.props,
       ...p,
+      className: undefined,
       ...styled.importantProps,
       ref,
       // Flattened so inline styles beat className and !important beats

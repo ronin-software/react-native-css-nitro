@@ -7,10 +7,10 @@ import { createElement, useContext, useMemo, type ComponentType, type ReactNode 
 
 import { VariableValuesContext } from "./native/contexts";
 import { useStyledProps } from "./native/useStyled";
-import { mergeStylesWithInline } from "./utils";
+import { mergeStylesWithInline, stripStyleMarkers } from "./utils";
 
 /** Marks an object produced by vars() as inline variable declarations */
-export const VAR_SYMBOL = Symbol.for("react-native-css.vars");
+export const VAR_SYMBOL = Symbol.for("react-native-css.var");
 
 export type StyledConfiguration<C = unknown> = Record<
   string,
@@ -41,7 +41,19 @@ export function mappingToConfig(mapping: StyledConfiguration): Config[] {
     if (Array.isArray(value)) {
       return [{ source: key, target: value }];
     }
-    // object form (nativeStyleMapping) is not supported yet
+    if (typeof value === "object" && value !== null && "target" in value) {
+      // object form: { target, nativeStyleMapping? }
+      const target = (value as { target: unknown }).target;
+      if (target === false) {
+        return [{ source: key, target: false }];
+      }
+      if (typeof target === "string") {
+        return [{ source: key, target: target.split(".") }];
+      }
+      if (Array.isArray(target)) {
+        return [{ source: key, target }];
+      }
+    }
     return [];
   });
 }
@@ -156,8 +168,11 @@ export function useStyledComponent(
   // observable triggers the C++ computed re-evaluation, which re-renders the
   // component with the resolved values.
 
-  // Build the output props
+  // Build the output props; consumed className sources are removed
   const out: Record<string, any> = { ...props };
+  for (const config of active) {
+    delete out[config.source];
+  }
 
   for (const { config, styled } of styledResults) {
     const target = Array.isArray(config.target)
@@ -167,7 +182,11 @@ export function useStyledComponent(
       continue;
     }
 
-    out[target] = mergeStylesWithInline(styled.cleanStyle, styled);
+    // Strip markers from this target's user value before merging.
+    // (Non-primary pass-through className markers are rare and unresolved.)
+    const collected = { classNames: [], variables: {} };
+    const userClean = stripStyleMarkers(out[target], collected);
+    out[target] = mergeStylesWithInline(userClean, styled);
   }
 
   return createElement(type, out);

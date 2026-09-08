@@ -18,19 +18,26 @@ export function copyComponentProperties<P1, P2>(
   return StyledComponent as ComponentType<P1 & P2>;
 }
 
-export function getDeepKeys(obj: unknown, keys = new Set<string>()): string[] {
-  if (typeof obj !== "object" || !obj) {
+export function getDeepKeys(
+  obj: unknown,
+  keys = new Set<string>(),
+  depth = 0,
+  seen = new Set<object>(),
+): string[] {
+  // Circular-reference and depth guard
+  if (typeof obj !== "object" || !obj || depth > 12 || seen.has(obj)) {
     return [];
   }
+  seen.add(obj);
 
   if (Array.isArray(obj)) {
     for (const item of obj) {
-      getDeepKeys(item, keys);
+      getDeepKeys(item, keys, depth + 1, seen);
     }
   } else {
     for (const key of Object.keys(obj)) {
       keys.add(key);
-      getDeepKeys((obj as Record<string, unknown>)[key], keys);
+      getDeepKeys((obj as Record<string, unknown>)[key], keys, depth + 1, seen);
     }
   }
 
@@ -43,6 +50,17 @@ export function getDeepKeys(obj: unknown, keys = new Set<string>()): string[] {
  * - inline beats className on shared keys
  * - disjoint className + inline styles stay an array (RN applies in order)
  */
+
+/** Plain object with no keys — must not create style layers (upstream #239) */
+function isEmptyPlainObject(value: unknown): boolean {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.keys(value).length === 0
+  );
+}
+
 export function mergeStylesWithInline(
   userStyle: any,
   styled: { style?: any; importantStyle?: any },
@@ -52,11 +70,8 @@ export function mergeStylesWithInline(
     ...(Array.isArray(styled.importantStyle)
       ? styled.importantStyle
       : [styled.importantStyle]),
-  ].filter(Boolean);
+  ].filter((layer) => Boolean(layer) && !isEmptyPlainObject(layer));
 
-  if (classNameLayers.length === 0) {
-    return userStyle;
-  }
 
   // Important beats everything: one resolved object
   if (styled.importantStyle) {
@@ -72,8 +87,29 @@ export function mergeStylesWithInline(
     return merged;
   }
 
-  const inlineLayers = Array.isArray(userStyle) ? userStyle : [userStyle];
-  const hasInline = inlineLayers.some(Boolean);
+  // The user style is ONE layer (arrays stay nested — RN resolves them);
+  // fully-filtered empty arrays count as no inline styles
+  const userIsEmptyArray = Array.isArray(userStyle) && userStyle.length === 0;
+  const inlineLayers = [userStyle].filter(
+    (layer) =>
+      layer !== undefined &&
+      layer !== null &&
+      !(Array.isArray(layer) && layer.length === 0) &&
+      !isEmptyPlainObject(layer),
+  );
+  const hasInline = !userIsEmptyArray && inlineLayers.length > 0;  if (classNameLayers.length === 0) {
+    // All inline values filtered out → no style
+    const hasLiteral = inlineLayers.some((layer) => {
+      if (layer === undefined || layer === null || isEmptyPlainObject(layer)) {
+        return false;
+      }
+      if (Array.isArray(layer)) {
+        return layer.length > 0;
+      }
+      return Object.keys(layer).length > 0;
+    });
+    return hasLiteral ? userStyle : undefined;
+  }
 
   if (!hasInline) {
     // className only: single object when one layer, else the cascade array
@@ -122,4 +158,56 @@ export function mergeStylesWithInline(
 
   // Every className key conflicts: inline wins in one resolved object
   return merged;
+}
+
+/** Marker symbols (global registry — matches runtime/useStyled) */
+const INLINE_RULE_SYMBOL = Symbol.for("react-native-css.inline-rule");
+const VARS_SYMBOL = Symbol.for("react-native-css.vars");
+
+/**
+ * Deep-strip styled markers from a style value:
+ * - inline-rule markers ({[INLINE_RULE_SYMBOL]: classNames}) are dropped,
+ *   their classNames collected
+ * - vars() markers ({[VARS_SYMBOL]: "inline", ...decls}) are dropped, their
+ *   declarations collected (leading -- stripped)
+ * Only literal values survive — upstream rightIsInline semantics.
+ */
+export function stripStyleMarkers(
+  value: unknown,
+  collected: { classNames: string[]; variables: Record<string, any> },
+): unknown {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => stripStyleMarkers(item, collected))
+      .filter((item) => item !== undefined);
+  }
+  if (value !== null && typeof value === "object") {
+    const record = value as Record<PropertyKey, unknown>;
+
+    if (VARS_SYMBOL in record) {
+      for (const [key, v] of Object.entries(record)) {
+        if (key !== String(VARS_SYMBOL)) {
+          const bare = key.startsWith("--") ? key.slice(2) : key;
+          collected.variables[bare] = v;
+        }
+      }
+      return undefined;
+    }
+
+    const inline = record[INLINE_RULE_SYMBOL];
+    if (typeof inline === "string") {
+      collected.classNames.push(...inline.split(/\s+/).filter(Boolean));
+      return undefined;
+    }
+
+    const cleaned: Record<string, any> = {};
+    for (const [key, v] of Object.entries(record)) {
+      const cleanedValue = stripStyleMarkers(v, collected);
+      if (cleanedValue !== undefined) {
+        cleaned[key] = cleanedValue;
+      }
+    }
+    return cleaned;
+  }
+  return value;
 }

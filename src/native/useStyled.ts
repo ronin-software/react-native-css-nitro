@@ -15,7 +15,7 @@ const REDUCER = <T>(state: T) => ({ ...state });
 /** Marker produced by styled(…, { passThrough: true }) */
 const INLINE_RULE_SYMBOL = Symbol.for("react-native-css.inline-rule");
 /** Marker produced by vars() */
-const VARS_SYMBOL = Symbol.for("react-native-css.vars");
+const VARS_SYMBOL = Symbol.for("react-native-css.var");
 
 /**
  * Extract classNames and inline variables from pass-through/vars markers
@@ -28,7 +28,21 @@ function extractMarkers(
   classNames: string[],
   variables: Record<string, any>,
   clean?: Record<string, any>,
+  depth = 0,
+  seen?: Set<object>,
 ): Record<string, any> | undefined {
+  // Circular-reference guard (upstream has a depth limit too)
+  if (depth > 12) {
+    return undefined;
+  }
+  const nextDepth = depth + 1;
+  const seenSet = seen ?? new Set<object>();
+  if (typeof style === "object" && style !== null) {
+    if (seenSet.has(style)) {
+      return undefined; // circular — cut the reference
+    }
+    seenSet.add(style);
+  }
   if (Array.isArray(style)) {
     const cleanedArray: any[] = [];
     for (const item of style) {
@@ -36,7 +50,17 @@ function extractMarkers(
         collectVars(item, variables);
         continue;
       }
-      const cleanedChild = extractMarkers(item, classNames, variables);
+      const cleanedChild = extractMarkers(item, classNames, variables, undefined, nextDepth, seenSet);
+      // Drop items that lost all their properties to filtering
+      if (
+        cleanedChild === undefined ||
+        (cleanedChild !== null &&
+          typeof cleanedChild === "object" &&
+          !Array.isArray(cleanedChild) &&
+          Object.keys(cleanedChild).length === 0)
+      ) {
+        continue;
+      }
       cleanedArray.push(cleanedChild);
     }
     if (clean) {
@@ -71,14 +95,17 @@ function extractMarkers(
           collectVars(item as Record<string, any>, variables);
           continue;
         }
-        const cleanedChild = extractMarkers(item, classNames, variables);
+        const cleanedChild = extractMarkers(item, classNames, variables, undefined, nextDepth, seenSet);
         cleanedArray.push(cleanedChild);
       }
       cleaned[key] = cleanedArray;
       continue;
     }
     if (value !== null && typeof value === "object") {
-      cleaned[key] = extractMarkers(value, classNames, variables);
+      const cleanedChild = extractMarkers(value, classNames, variables, undefined, nextDepth, seenSet);
+      if (cleanedChild !== undefined) {
+        cleaned[key] = cleanedChild;
+      }
       continue;
     }
     cleaned[key] = value;
@@ -142,11 +169,14 @@ export function useStyledProps(
   const inheritedVars = use(VariableValuesContext);
   const extraClassNames: string[] = [];
   const inlineVariables: Record<string, any> = {};
-  const cleanStyle = extractMarkers(
+  const extracted = extractMarkers(
     originalProps.style,
     extraClassNames,
     inlineVariables,
   );
+  // Fully-filtered styles resolve to undefined
+  const cleanStyle =
+    Array.isArray(extracted) && extracted.length === 0 ? undefined : extracted;
   // Inherited provider variables apply unless the component sets its own
   if (inheritedVars) {
     for (const [key, value] of Object.entries(inheritedVars)) {

@@ -33,6 +33,7 @@ export const View = copyComponentProperties(
     return useElement(AnimatedView, styled, {
       ...styled.props,
       ...p,
+      className: undefined,
       ...styled.importantProps,
       ref,
       // Flattened so inline styles beat className and !important beats
