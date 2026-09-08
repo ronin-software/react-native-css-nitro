@@ -4,26 +4,20 @@ appId: cssnitro.example
 ---
 - launchApp
 - assertVisible:
-    id: e2e-jsi
+    id: showcase-header
+# container queries: wide frame green, narrow frame red
 - assertVisible:
-    id: e2e-color
+    id: cq-wide-label
 - assertVisible:
-    id: e2e-calc
-- assertVisible:
-    id: e2e-var
-- assertVisible:
-    id: e2e-mq
-- assertVisible:
-    id: e2e-shadow
-- assertVisible:
-    id: e2e-transform
-- assertVisible:
-    id: e2e-press
+    id: cq-narrow-label
 - takeScreenshot: e2e-initial
-# tap the pressable row (its pressed-state styling was verified via an
-# agent-device hold: yellow background + black text mid-press)
+# dark-mode class selectors: toggle the scheme, card must flip
 - tapOn:
-    id: e2e-press
+    id: dark-toggle
 - waitForAnimationToEnd:
     timeout: 2000
-- takeScreenshot: e2e-after-tap
+- takeScreenshot: e2e-dark
+- tapOn:
+    id: dark-toggle
+- waitForAnimationToEnd:
+    timeout: 2000

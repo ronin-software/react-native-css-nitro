@@ -1,6 +1,17 @@
 # E2E verification
 
-`maestro test .e2e/verify-styles.yaml` against a Release build of the example
-app on iPhone 17 Pro (iOS 26.5). Screenshots land in ~/.maestro/tests/<run>/
-— the pressed screenshot must show the e2e-press row with a yellow
-background and black text (active pseudo-class), reverting on release.
+`verify-styles.yaml` drives the showcase app (Release build, iPhone 17 Pro /
+iOS 26.5):
+
+1. Assert the showcase header + both container-query labels render
+2. Screenshot the light state
+3. Tap the dark toggle, screenshot the dark state (class-selector dark mode)
+4. Toggle back
+
+Group press (`:active` on the group card propagating to the child pill) is
+verified with `agent-device longpress 201 460 4000` + a screenshot mid-hold —
+Maestro can't hold-and-screenshot.
+
+Latest evidence: `verification/v3-*.png` (initial / dark / group-press).
+Pixel-verified: dark flip (slate-50 → slate-950 screen, card → slate-800),
+group press (child pill → red-700 mid-hold).
