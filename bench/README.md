@@ -16,6 +16,7 @@ Methodology notes:
 - JS runs in Node (V8). On device it runs Hermes, which is slower — so
   these speedups are a *floor* for the on-device delta.
 - The C++ side measures the style-resolution core; the shadow-tree
-  direct-write path (`RN_CSS_SHADOW_WRITE=1`) eliminates the React render
-  pass entirely on device — see PORTING.md. Device measurement: a group
-  press costs 2 styled React renders in rerender mode, 0 in shadow mode.
+  direct-write path (default on, `RN_CSS_SHADOW_WRITE=0` to opt out)
+  eliminates the React render pass entirely on device — see PORTING.md.
+  Device measurement: a group press costs 2 styled React renders in
+  rerender mode, 0 in shadow mode.

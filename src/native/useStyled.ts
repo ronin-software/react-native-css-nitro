@@ -242,8 +242,8 @@ export function useStyledProps(
 
   // Shadow-write mode skips the React rerender on style changes, so the
   // JS-rendered props go stale — re-commit the computed styles after every
-  // React commit to undo the stale props React just mounted. No-op unless
-  // RN_CSS_SHADOW_WRITE is set.
+  // React commit to undo the stale props React just mounted. No-op when
+  // RN_CSS_SHADOW_WRITE=0 opts out.
   useEffect(() => {
     (StyleRegistry as { refreshShadowStyles?: (id: string) => void })
       .refreshShadowStyles?.(componentId);

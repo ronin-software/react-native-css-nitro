@@ -85,7 +85,8 @@ transform, Nitro C++ interop, and the full :active press/release lifecycle.
 
 Findings from device verification:
 - `uiManager.updateShadowTree` direct-write is FIXED (RN 0.82 Fabric) and
-  shipped behind `RN_CSS_SHADOW_WRITE=1`. Root cause of "colors render
+  shipped ON by default; `RN_CSS_SHADOW_WRITE=0` opts back into the
+  React-rerender path for comparison/rollback. Root cause of "colors render
   incorrectly": JS `processColor` returns UNSIGNED 32-bit ARGB; the
   double→int cast in `processColorDynamic` is UB and saturates on ARM64,
   turning every opaque color into INT32_MAX. Fixed with an explicit

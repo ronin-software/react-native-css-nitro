@@ -149,7 +149,12 @@ namespace margelo::nitro::cssnitro {
     }
 
     bool ShadowTreeUpdateManager::shadowWritesEnabled() {
-        static const bool enabled = std::getenv("RN_CSS_SHADOW_WRITE") != nullptr;
+        // Default on; RN_CSS_SHADOW_WRITE=0 opts back into the React-rerender
+        // path for comparison/rollback
+        static const bool enabled = []() {
+            const char *env = std::getenv("RN_CSS_SHADOW_WRITE");
+            return env == nullptr || std::string_view(env) != "0";
+        }();
         return enabled;
     }
 
