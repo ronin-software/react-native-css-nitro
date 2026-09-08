@@ -1,10 +1,6 @@
 # Blocked test files
 
-Ported from upstream but blocked on APIs that are not implemented yet:
-
-- `keywords`, `units` — need `useNativeCss` (the internal hook API)
-- `vars`, `variables` — need `styled()` HOC and `VariableContextProvider`
-  (the "3rd party hook" / variable-scope APIs)
-
-Move these back to `src/__tests__/native/` as the APIs land.
-(`selectors` is gone — dark-mode class selectors are implemented.)
+All previously blocked suites (`keywords`, `units`, `vars`, `variables`,
+`selectors`) have been un-blocked and moved to `src/__tests__/native/`.
+This directory is empty; it remains as a marker so testPathIgnorePatterns
+keeps working.

@@ -8,9 +8,9 @@ import type {
   HybridContainerQuery,
   SpecificityArray,
 } from "../specs/StyleRegistry/HybridStyleRegistry.nitro";
+import type { CompilerOptions } from "./compiler.types";
 
 export type { AttributeQueryRule };
-import type { CompilerOptions } from "./compiler.types";
 
 interface PseudoClass {
   a?: boolean; // active
@@ -28,6 +28,8 @@ interface ClassNameSelector {
   containerQuery?: HybridContainerQuery[];
   pseudoClassesQuery?: PseudoClass;
   attributeQuery?: AttributeQueryRule[];
+  /** [data-*] attribute queries — resolved against props.dataSet */
+  dataQuery?: AttributeQueryRule[];
 }
 
 interface VariableSelector {
@@ -96,20 +98,22 @@ export class SelectorParser {
     }
     return (
       components.some(
-        (c) => c.type === "class" && c.name === this.options.darkMode,
+        (c: SelectorComponent) =>
+          c.type === "class" && c.name === this.options.darkMode,
       ) && components.some((c) => c.type === "universal")
     );
   }
 
   private isDarkAncestorIs(selector: Selector): boolean {
     const isComponent = selector.find(
-      (c) => c.type === "pseudo-class" && c.kind === "is",
+      (c): c is typeof c & { kind: "is"; selectors: Selector[] } =>
+        c.type === "pseudo-class" && c.kind === "is",
     );
-    if (!isComponent || isComponent.type !== "pseudo-class") {
+    if (!isComponent) {
       return false;
     }
     const inner = isComponent.selectors;
-    if (!inner || inner.length !== 1) {
+    if (inner.length !== 1) {
       return false;
     }
     const components = inner[0];
@@ -119,7 +123,8 @@ export class SelectorParser {
     return (
       components.length === 2 &&
       components.some(
-        (c) => c.type === "class" && c.name === this.options.darkMode,
+        (c: SelectorComponent) =>
+          c.type === "class" && c.name === this.options.darkMode,
       ) &&
       components.some((c) => c.type === "universal")
     );
@@ -224,9 +229,6 @@ export class SelectorParser {
       case "attribute":
         return this.processAttributeComponent(component, context);
 
-      case "type":
-        return this.processTypeComponent(component, context);
-
       case "combinator":
         return this.processCombinatorComponent(component, context);
 
@@ -285,13 +287,16 @@ export class SelectorParser {
         // Dark-mode class: `<sel>:is(.dark *)` — the dark class lives on the
         // app root, so gate the rule on the color-scheme condition instead
         // of matching an ancestor (upstream design, left unimplemented there)
-        const isDark = this.options.darkMode &&
-          component.selectors?.length === 1 &&
+        const isDark =
+          this.options.darkMode &&
+          component.selectors.length === 1 &&
           this.isDarkAncestorIsList(component.selectors);
         if (isDark) {
-          context.setForcedMedia([{
-            "prefers-color-scheme": ["=", "dark"],
-          } as unknown as AnyMap]);
+          context.setForcedMedia([
+            {
+              "prefers-color-scheme": ["=", "dark"],
+            } as unknown as AnyMap,
+          ]);
           return "valid";
         }
         return "invalid";
@@ -309,7 +314,7 @@ export class SelectorParser {
 
     const query = this.buildAttributeQuery(component);
     if (query) {
-      context.addAttributeQuery(query);
+      context.addAttributeQuery(query, component.name.startsWith("data-"));
       return "valid";
     }
 
@@ -353,17 +358,6 @@ export class SelectorParser {
       default:
         return undefined;
     }
-  }
-
-  private processTypeComponent(
-    component: Extract<SelectorComponent, { type: "type" }>,
-    _context: SelectorContext,
-  ): "valid" | "invalid" {
-    // Only allow type selectors that match the selector prefix (e.g., "html")
-    if (component.name === this.options.selectorPrefix) {
-      return "valid";
-    }
-    return "invalid";
   }
 
   private processCombinatorComponent(
@@ -479,6 +473,8 @@ class SelectorContext {
   }
   private containerQuery?: HybridContainerQuery[];
   private attributeQuery?: AttributeQueryRule[];
+  /** [data-*] attribute queries — resolved against props.dataSet */
+  private dataQuery?: AttributeQueryRule[];
   private pseudoClassesQuery?: PseudoClass;
   private currentContainerQuery?: HybridContainerQuery;
 
@@ -506,10 +502,15 @@ class SelectorContext {
     target[key] = value;
   }
 
-  addAttributeQuery(rule: AttributeQueryRule) {
-    // For now, store all as regular attribute rules
-    this.attributeQuery ??= [];
-    this.attributeQuery.push(rule);
+  addAttributeQuery(rule: AttributeQueryRule, isData = false) {
+    if (isData) {
+      // [data-*] queries resolve against props.dataSet (upstream parity)
+      this.dataQuery ??= [];
+      this.dataQuery.push(rule);
+    } else {
+      this.attributeQuery ??= [];
+      this.attributeQuery.push(rule);
+    }
   }
 
   addContainerClass(name: string) {
@@ -538,6 +539,7 @@ class SelectorContext {
       containerQuery: this.containerQuery,
       pseudoClassesQuery: this.pseudoClassesQuery,
       attributeQuery: this.attributeQuery,
+      dataQuery: this.dataQuery,
     };
   }
 

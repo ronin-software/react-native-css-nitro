@@ -464,3 +464,79 @@ TEST_CASE("dropShadow with missing blur defaults to 0 and omits color") {
     CHECK(std::get<double>(inner["standardDeviation"]) == 0.0);
     CHECK(inner.find("color") == inner.end());
 }
+
+TEST_CASE("textShadow resolves var holding tokens with trailing color") {
+    auto get = makeGet();
+
+    // --my-shadow: 1px 1px 2px #000; text-shadow: var(--my-shadow)
+    VariableContext::setTopLevelVariable(
+        "root", "my-shadow",
+        AnyValue(AnyArray{AnyValue(AnyObject{
+            {"v", AnyValue(AnyArray{
+                AnyValue(1.0), AnyValue(1.0), AnyValue(2.0),
+                AnyValue(std::string("#000")),
+            })},
+        })}));
+
+    // Compiler emits the nested form: ["fn","textShadow",["fn","var","my-shadow"]]
+    AnyArray fnValue = {"fn", "textShadow",
+                        AnyValue(AnyArray{"fn", AnyValue(std::string("var")),
+                                          AnyValue(std::string("my-shadow"))})};
+    AnyValue resolved = StyleResolver::resolveStyle(AnyValue(std::move(fnValue)), "", get);
+
+    auto shadow = std::get<AnyObject>(resolved);
+    auto offset = std::get<AnyObject>(shadow["textShadowOffset"]);
+    CHECK(std::get<std::string>(shadow["textShadowColor"]) == "#000");
+    CHECK(std::get<double>(offset["width"]) == 1.0);
+    CHECK(std::get<double>(offset["height"]) == 1.0);
+    CHECK(std::get<double>(shadow["textShadowRadius"]) == 2.0);
+}
+
+TEST_CASE("textShadow with no color defaults to the platform label color") {
+    auto get = makeGet();
+
+    // --my-var: 10px 10px; text-shadow: var(--my-var)
+    VariableContext::setTopLevelVariable(
+        "root", "my-var",
+        AnyValue(AnyArray{AnyValue(AnyObject{
+            {"v", AnyValue(AnyArray{AnyValue(10.0), AnyValue(10.0)})},
+        })}));
+
+    VariableContext::setTopLevelVariable(
+        "root", "__rn-css-color",
+        AnyValue(AnyArray{AnyValue(AnyObject{
+            {"v", AnyValue(AnyObject{{"semantic",
+                                      AnyValue(AnyArray{AnyValue(std::string("label")),
+                                                       AnyValue(std::string("labelColor"))})}})},
+        })}));
+
+    AnyArray fnValue = {"fn", "textShadow",
+                        AnyValue(AnyArray{"fn", AnyValue(std::string("var")),
+                                          AnyValue(std::string("my-var"))})};
+    AnyValue resolved = StyleResolver::resolveStyle(AnyValue(std::move(fnValue)), "", get);
+
+    auto shadow = std::get<AnyObject>(resolved);
+    auto color = std::get<AnyObject>(shadow["textShadowColor"]);
+    CHECK(color.count("semantic") == 1);
+    CHECK(std::get<double>(std::get<AnyObject>(shadow["textShadowOffset"])["width"]) == 10.0);
+}
+
+TEST_CASE("colorMix with transparent right applies the percentage as alpha") {
+    auto get = makeGet();
+
+    // bg-red-500/50 → color-mix(in oklab, var(--bg) 50%, transparent)
+    // The compiler folds the transparent side into the 3-arg form
+    VariableContext::setTopLevelVariable(
+        "root", "bg",
+        AnyValue(AnyArray{AnyValue(AnyObject{
+            {"v", AnyValue(AnyArray{AnyValue(std::string("#e7000b"))})},
+        })}));
+
+    AnyArray fnValue = {
+        "fn", AnyValue(std::string("colorMix")), AnyValue(std::string("oklab")),
+        AnyValue(AnyArray{"fn", AnyValue(std::string("var")), AnyValue(std::string("bg"))}),
+        AnyValue(std::string("50%"))};
+    AnyValue resolved = StyleResolver::resolveStyle(AnyValue(std::move(fnValue)), "", get);
+
+    CHECK(std::get<std::string>(resolved) == "rgba(231, 0, 11, 0.5)");
+}

@@ -233,6 +233,16 @@ namespace margelo::nitro::cssnitro {
                     continue;
                 }
 
+                // Shorthand declarations whose resolved object spreads into
+                // the style (upstream's shorthandObject semantics)
+                if (kv.first == "textShadow" &&
+                    std::holds_alternative<AnyObject>(resolvedValue)) {
+                    for (const auto &entry: std::get<AnyObject>(resolvedValue)) {
+                        targetMap[entry.first] = entry.second;
+                    }
+                    continue;
+                }
+
                 targetMap[kv.first] = resolvedValue;
             }
         }

@@ -1,5 +1,5 @@
-import { useId, type ComponentProps } from "react";
-import { Pressable } from "react-native";
+import { useId, useRef, type ComponentProps } from "react";
+import { Pressable, View as RNView } from "react-native";
 
 import { useElement } from "../../native/useElement";
 import { useDualRefs } from "../../native/useRef";
@@ -11,11 +11,9 @@ import {
   mergeStylesWithInline,
 } from "../../utils";
 
-const AnimatedView = Pressable;
-
 export const View = copyComponentProperties(
-  AnimatedView,
-  (p: ComponentProps<typeof AnimatedView>) => {
+  RNView,
+  (p: ComponentProps<typeof RNView> & { onPress?: unknown; ref?: unknown }) => {
     const componentId = useId();
     const styled = useStyledProps(componentId, p.className, p);
     const ref = useDualRefs(componentId, p.ref);
@@ -28,13 +26,36 @@ export const View = copyComponentProperties(
       );
     }
 
-    return useElement(AnimatedView, styled, {
+    // Pressable only when interaction is wired — a plain View keeps upstream's
+    // pass-through props semantics (no accessibilityState synthesis etc.).
+    // Sticky: switching component type remounts the subtree, so once interactive
+    // the instance stays Pressable even if the rules stop asking for it.
+    const everInteractive = useRef(false);
+    if (styled.interactive || typeof p.onPress === "function") {
+      everInteractive.current = true;
+    }
+    const component = everInteractive.current
+      ? (Pressable as unknown as typeof RNView)
+      : RNView;
+
+    // Layout events are only wired for containers (container queries) or when
+    // the user supplied one — keeps rendered props identical to a plain View
+    const needsLayout = styled.needsLayout || typeof p.onLayout === "function";
+
+    return useElement(component, styled, {
       ...styled.props,
       ...p,
-      onLayout: (event: any) => {
-        StyleRegistry.updateComponentLayout(componentId, event.nativeEvent.layout);
-        p.onLayout?.(event);
-      },
+      ...(needsLayout
+        ? {
+            onLayout: (event: any) => {
+              StyleRegistry.updateComponentLayout(
+                componentId,
+                event.nativeEvent.layout,
+              );
+              p.onLayout?.(event);
+            },
+          }
+        : null),
       className: undefined,
       ...styled.importantProps,
       ref,

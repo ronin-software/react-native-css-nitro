@@ -44,9 +44,9 @@ export function compile(code: Buffer | string, options: CompilerOptions = {}) {
   // explicitly set inlineRem, later rem values bake with it. Detected via a
   // cheap pre-scan (the visitor may process rules out of source order).
   if (options.inlineRem !== false) {
-    const rootRemMatch = code
-      .toString()
-      .match(/:root[^{]*\{[^}]*font-size:\s*([\d.]+)px/);
+    const rootRemMatch = /:root[^{]*\{[^}]*font-size:\s*([\d.]+)px/.exec(
+      code.toString(),
+    );
     if (rootRemMatch) {
       options = { ...options, inlineRem: Number(rootRemMatch[1]) };
     }
@@ -144,7 +144,9 @@ function extractRule(rule: Rule, stylesheet: CompilerStyleSheet) {
 
       if (stylesheet.pushSelectors(selectors)) {
         stylesheet.addDeclarations(declarations?.declarations);
-        stylesheet.addImportantDeclarations(declarations?.importantDeclarations);
+        stylesheet.addImportantDeclarations(
+          declarations?.importantDeclarations,
+        );
 
         for (const nestedRule of rules) {
           extractRule(nestedRule, stylesheet);

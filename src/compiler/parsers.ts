@@ -32,6 +32,7 @@ import type {
   CalcFor_Length,
   ColorOrAuto,
   CssColor,
+  Function as CssFunction,
   Declaration,
   DimensionPercentageFor_LengthValue,
   EasingFunction,
@@ -59,7 +60,6 @@ import type {
   Token,
   TokenOrValue,
   UnresolvedColor,
-  Function as CssFunction,
 } from "lightningcss";
 import type { ValueType } from "react-native-nitro-modules";
 
@@ -1187,7 +1187,13 @@ function boxShadow(
     const offsetY = length(shadow.yOffset, b) ?? 0;
 
     if (!shadowColor) {
-      return { color: "transparent", blurRadius: 0, spreadDistance: 0, offsetX: 0, offsetY: 0 };
+      return {
+        color: "transparent",
+        blurRadius: 0,
+        spreadDistance: 0,
+        offsetX: 0,
+        offsetY: 0,
+      };
     }
 
     const boxShadow: Partial<Record<keyof BoxShadowValue, ValueType>> = {
@@ -1312,7 +1318,12 @@ function nanToZero(value: number): number {
 // ["fn", name, ...] tuple grammar the typed path (calcArguments) emits, so the
 // C++ runtime resolves both identically.
 
-const mathPrecedence: Record<string, number> = { "+": 1, "-": 1, "*": 2, "/": 2 };
+const mathPrecedence: Record<string, number> = {
+  "+": 1,
+  "-": 1,
+  "*": 2,
+  "/": 2,
+};
 
 function mathLeaf(
   tokenOrValue: TokenOrValue,
@@ -1382,7 +1393,10 @@ function mathExpression(
           return undefined;
         }
         let top = ops[ops.length - 1];
-        while (top !== undefined && (mathPrecedence[top] ?? 0) >= (mathPrecedence[op] ?? 0)) {
+        while (
+          top !== undefined &&
+          (mathPrecedence[top] ?? 0) >= (mathPrecedence[op] ?? 0)
+        ) {
           ops.pop();
           output.push(top);
           top = ops[ops.length - 1];
@@ -1437,12 +1451,12 @@ function mathExpression(
 }
 
 function splitMathArgs(tokens: TokenOrValue[]): TokenOrValue[][] {
-  return splitByDelimiter(tokens, (item) =>
-    Boolean(
+  return splitByDelimiter(
+    tokens,
+    (item) =>
       item.type === "token" &&
-        (item.value.type === "comma" ||
-          (item.value.type === "delim" && item.value.value === ",")),
-    ),
+      (item.value.type === "comma" ||
+        (item.value.type === "delim" && item.value.value === ",")),
   );
 }
 
@@ -1460,13 +1474,13 @@ export function mathFunction(
     let strategy = "nearest";
     let argTokens = fn.arguments;
     const first = argTokens[0];
-    if (first !== undefined && first.type === "token" && first.value.type === "ident") {
-      strategy = String(first.value.value);
+    if (first?.type === "token" && first.value.type === "ident") {
+      strategy = first.value.value;
       argTokens = argTokens.slice(1);
     }
     const args = splitMathArgs(argTokens)
       .map((group) => mathExpression(group, b))
-      .filter((arg) => arg !== undefined) as ValueType[];
+      .filter((arg) => arg !== undefined);
     const roundMin = args[0];
     const roundMax = args[1];
     if (roundMin === undefined || roundMax === undefined) {
@@ -1477,7 +1491,7 @@ export function mathFunction(
 
   const args = splitMathArgs(fn.arguments)
     .map((group) => mathExpression(group, b))
-    .filter((arg) => arg !== undefined) as ValueType[];
+    .filter((arg) => arg !== undefined);
 
   switch (fn.name) {
     case "min":
@@ -1575,28 +1589,44 @@ function color(
     case "lab":
       color = {
         space: Lab,
-        coords: [nanToZero(cssColor.l), nanToZero(cssColor.a), nanToZero(cssColor.b)],
+        coords: [
+          nanToZero(cssColor.l),
+          nanToZero(cssColor.a),
+          nanToZero(cssColor.b),
+        ],
         alpha: cssColor.alpha,
       };
       break;
     case "lch":
       color = {
         space: LCH,
-        coords: [nanToZero(cssColor.l), nanToZero(cssColor.c), nanToZero(cssColor.h)],
+        coords: [
+          nanToZero(cssColor.l),
+          nanToZero(cssColor.c),
+          nanToZero(cssColor.h),
+        ],
         alpha: cssColor.alpha,
       };
       break;
     case "oklab":
       color = {
         space: OKLab,
-        coords: [nanToZero(cssColor.l), nanToZero(cssColor.a), nanToZero(cssColor.b)],
+        coords: [
+          nanToZero(cssColor.l),
+          nanToZero(cssColor.a),
+          nanToZero(cssColor.b),
+        ],
         alpha: cssColor.alpha,
       };
       break;
     case "oklch":
       color = {
         space: OKLCH,
-        coords: [nanToZero(cssColor.l), nanToZero(cssColor.c), nanToZero(cssColor.h)],
+        coords: [
+          nanToZero(cssColor.l),
+          nanToZero(cssColor.c),
+          nanToZero(cssColor.h),
+        ],
         alpha: cssColor.alpha,
       };
       break;
@@ -2838,8 +2868,11 @@ function textShadow(
     return;
   }
   b.set("textShadowColor", color(textShadow.color, b));
-  b.set("textShadowOffsetWidth", length(textShadow.xOffset, b));
-  b.set("textShadowOffsetHeight", length(textShadow.yOffset, b));
+  // RN's TextStyle wants a nested {width, height} offset object
+  b.set("textShadowOffset", {
+    width: length(textShadow.xOffset, b) ?? 0,
+    height: length(textShadow.yOffset, b) ?? 0,
+  });
   b.set("textShadowRadius", length(textShadow.blur, b));
 }
 

@@ -1,5 +1,5 @@
 import { useId, type ComponentPropsWithRef } from "react";
-import { Text as RNText, } from "react-native";
+import { Text as RNText } from "react-native";
 
 import { useElement } from "../../native/useElement";
 import { useDualRefs } from "../../native/useRef";
@@ -29,13 +29,24 @@ export const Text = copyComponentProperties(
       );
     }
 
+    // Layout events are only wired for containers (container queries) or when
+    // the user supplied one — keeps rendered props identical to a plain Text
+    const needsLayout = styled.needsLayout || typeof p.onLayout === "function";
+
     return useElement(AnimatedText, styled, {
       ...styled.props,
       ...p,
-      onLayout: (event: any) => {
-        StyleRegistry.updateComponentLayout(componentId, event.nativeEvent.layout);
-        p.onLayout?.(event);
-      },
+      ...(needsLayout
+        ? {
+            onLayout: (event: any) => {
+              StyleRegistry.updateComponentLayout(
+                componentId,
+                event.nativeEvent.layout,
+              );
+              p.onLayout?.(event);
+            },
+          }
+        : null),
       className: undefined,
       ...styled.importantProps,
       ref,

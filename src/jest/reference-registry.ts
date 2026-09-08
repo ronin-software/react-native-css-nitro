@@ -13,6 +13,7 @@
  * - fn resolution covers var() and marker units; math functions are owned
  *   by the doctests
  */
+import { to as convert, mix, parse } from "colorjs.io/fn";
 import type { AnyMap, ValueType } from "react-native-nitro-modules";
 
 import { testAttributeQuery } from "../native/attributeQuery";
@@ -763,6 +764,11 @@ export class ReferenceRegistry {
     }
   }
 
+  /** Shorthand declarations whose resolved object spreads into the style */
+  private static readonly SHORTHAND_SPREAD: Record<string, true> = {
+    textShadow: true,
+  };
+
   private mergeDeclarations(
     declarations: Record<string, AnyValue>,
     target: Record<string, AnyValue>,
@@ -780,6 +786,15 @@ export class ReferenceRegistry {
       if (resolved === null) {
         // RN styles treat undefined values as absent — the key must exist
         target[key] = undefined as unknown as AnyValue;
+      } else if (
+        key in ReferenceRegistry.SHORTHAND_SPREAD &&
+        (resolved as unknown) !== null &&
+        typeof resolved === "object" &&
+        !Array.isArray(resolved)
+      ) {
+        // Shorthands like textShadow resolve to {textShadowColor, ...} —
+        // spread into the style (upstream's shorthandObject semantics)
+        Object.assign(target, resolved);
       } else {
         target[key] = resolved;
       }
@@ -944,6 +959,113 @@ export class ReferenceRegistry {
       const [offsetX = 0, offsetY = 0, standardDeviation = 0] = nums;
       // filter is a list of filter functions — keep the array shape
       return [{ dropShadow: { offsetX, offsetY, standardDeviation, color } }];
+    }
+    if (name === "textShadow") {
+      // ["fn", "textShadow", <resolved var tokens>] — the variable holds the
+      // whitespace-separated shadow tokens. Upstream matches these patterns
+      // (shorthands/text-shadow.ts): [w,h,blur,color], [color,w,h,blur],
+      // [w,h,color], [color,w,h], [w,h].
+      const parts: AnyValue[] = args.map((arg) =>
+        this.resolveValue(arg, variableScope),
+      );
+
+      const tokens: AnyValue[] = parts.flatMap((p) => {
+        if (Array.isArray(p)) {
+          // Resolve nested marker tuples (currentcolor → PlatformColor)
+          return p.map((t) =>
+            Array.isArray(t) ? this.resolveValue(t, variableScope) : t,
+          );
+        }
+        if (typeof p === "object" && p !== null) {
+          return [p];
+        }
+        return String(p).split(/\s+/).filter(Boolean);
+      });
+
+      const isColor = (t: AnyValue | undefined) =>
+        typeof t === "string" || (typeof t === "object" && t !== null);
+      const num = (t: AnyValue | undefined) =>
+        typeof t === "number"
+          ? t
+          : typeof t === "string"
+            ? parseFloat(t) || 0
+            : 0;
+
+      let width = 0;
+      let height = 0;
+      let blur: AnyValue = 0;
+      let color: AnyValue | undefined;
+
+      if (tokens.length >= 2) {
+        if (isColor(tokens[0])) {
+          // [color, w, h, (blur)]
+          color = tokens[0];
+          width = num(tokens[1]);
+          height = num(tokens[2]);
+          blur = tokens[3] ?? 0;
+        } else {
+          // [w, h] / [w, h, blur] / [w, h, blur, color]
+          width = num(tokens[0]);
+          height = num(tokens[1]);
+          if (tokens[2] !== undefined && !isColor(tokens[2])) {
+            blur = tokens[2];
+          }
+          if (tokens[3] !== undefined && isColor(tokens[3])) {
+            color = tokens[3];
+          } else if (tokens[2] !== undefined && isColor(tokens[2])) {
+            color = tokens[2];
+          }
+        }
+      }
+
+      if (color === undefined) {
+        // Default color is currentcolor → the platform label color
+        color = this.resolveVar("__rn-css-color", undefined, variableScope);
+      }
+
+      return {
+        textShadowColor: color,
+        textShadowOffset: { width, height },
+        textShadowRadius: blur,
+      };
+    }
+    if (name === "colorMix") {
+      // ["fn","colorMix", space, left, leftPct?, right?, rightPct?] — the
+      // compiler folds a `transparent` right side into the 3-arg form
+      const resolved = args.map((arg) => this.resolveValue(arg, variableScope));
+      const [space, left, leftPct, right, rightPct] = resolved;
+
+      if (typeof space !== "string" || typeof left !== "string") {
+        return undefined as unknown as AnyValue;
+      }
+
+      try {
+        const parsed = parse(left);
+        if (right === undefined || right === null) {
+          // Single color with alpha — convert to sRGB and serialize
+          parsed.alpha =
+            typeof leftPct === "string" && leftPct.endsWith("%")
+              ? parseFloat(leftPct) / 100
+              : (parsed.alpha ?? 1);
+          const srgb =
+            parsed.spaceId !== "srgb" ? convert(parsed, "srgb") : parsed;
+          return `rgba(${(srgb.coords[0] ?? 0) * 255}, ${(srgb.coords[1] ?? 0) * 255}, ${(srgb.coords[2] ?? 0) * 255}, ${srgb.alpha})`;
+        }
+        if (typeof right !== "string") {
+          return undefined as unknown as AnyValue;
+        }
+        const rightColor = parse(right);
+        if (typeof rightPct === "string" && rightPct.endsWith("%")) {
+          rightColor.alpha = parseFloat(rightPct) / 100;
+        }
+        const result = mix(parsed, rightColor, {
+          space,
+          outputSpace: "srgb",
+        });
+        return `rgba(${(result.coords[0] ?? 0) * 255}, ${(result.coords[1] ?? 0) * 255}, ${(result.coords[2] ?? 0) * 255}, ${result.alpha})`;
+      } catch {
+        return undefined as unknown as AnyValue;
+      }
     }
     if (name === "boxShadow" && args.length >= 1) {
       // ["fn", "boxShadow", parts...] — parts are (possibly nested) lists of

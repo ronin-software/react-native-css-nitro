@@ -297,3 +297,22 @@ already pass.
   `StyleFunction.cpp` (flattened fn tuples, token lists, currentcolor →
   PlatformColor via the seeded `__rn-css-color` root variable). Ported
   upstream test: `src/__tests__/native/filters.test.tsx` (8/8).
+- **text-shadow**: compiler now emits a nested `textShadowOffset {width,height}`
+  object (was flat textShadowOffsetWidth/Height — wire-format change, no C++
+  consumers existed); textShadow runtime resolver in both runtimes matches
+  upstream's shorthand patterns ([w,h,blur,color] … [w,h]). Shorthand results
+  spread into the style (upstream's shorthandObject semantics) — the spread
+  set is `textShadow` only. Ported: `text-shadow.test.tsx` (4/4).
+- **color-mix**: runtime resolver in both runtimes. The jest double uses
+  colorjs.io (upstream parity); C++ covers the transparent-right 3-arg form
+  (the Tailwind opacity-modifier pattern) with a hex/rgb/named color parser.
+  Ported: `color-mix.test.tsx` (3/3).
+- **attributes**: `:disabled`/`:empty`/`[data-*]` self-attribute selectors.
+  The compiler now routes `data-*` queries to `AttributeQuery.d` (dataSet) —
+  wire-format change; all others stay in `.a`. Ported: `attributes.test.tsx`
+  (4/4).
+- **View/Text prop fidelity**: View renders a plain RNView unless interaction
+  (own pseudo rules, group container, user handlers) or press handlers exist —
+  Pressable synthesis (accessibilityState etc.) no longer pollutes props.
+  Interactive-ness is sticky per instance to avoid remounting subtrees when
+  rules change. Layout events only wire for containers (or user onLayout).

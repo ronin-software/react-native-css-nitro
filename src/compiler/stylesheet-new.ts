@@ -5,6 +5,7 @@ import type {
   MediaRule,
   SelectorList,
 } from "lightningcss";
+import type { AnyMap, ValueType } from "react-native-nitro-modules";
 
 import { Specificity } from "../native/specificity";
 import type {
@@ -15,7 +16,6 @@ import type {
   StyleSheet as HybridStyleSheet,
   SpecificityArray,
 } from "../specs/StyleRegistry";
-import type { AnyMap, ValueType } from "react-native-nitro-modules";
 import type { CompilerOptions } from "./compiler.types";
 import { getContainerQuery } from "./container-query";
 import { DeclarationBuilder, parseDeclaration } from "./declarations";
@@ -34,7 +34,11 @@ const DEFAULT_MAPPING = {
   "background-image": "experimental_backgroundImage",
 };
 
-type VariableItem = { v: ValueType; m?: AnyMap };
+// type alias keeps `as AnyMap` casts below assignable
+interface VariableItem {
+  v: ValueType;
+  m?: AnyMap;
+}
 
 export class CompilerStyleSheet {
   private readonly selectorStack: NormalizedSelector[][] = [];
@@ -120,7 +124,11 @@ export class CompilerStyleSheet {
       return;
     }
 
-    const rule = new DeclarationBuilder(this.options, this.currentMapping, this.remBase);
+    const rule = new DeclarationBuilder(
+      this.options,
+      this.currentMapping,
+      this.remBase,
+    );
     for (const declaration of declarations) {
       parseDeclaration(declaration, rule);
     }
@@ -132,7 +140,11 @@ export class CompilerStyleSheet {
     if (!declarations || declarations.length === 0) {
       return;
     }
-    const rule = new DeclarationBuilder(this.options, this.currentMapping, this.remBase);
+    const rule = new DeclarationBuilder(
+      this.options,
+      this.currentMapping,
+      this.remBase,
+    );
     for (const declaration of declarations) {
       parseDeclaration(declaration, rule);
     }
@@ -164,7 +176,11 @@ export class CompilerStyleSheet {
         }
       });
 
-      const rule = new DeclarationBuilder(this.options, this.currentMapping, this.remBase);
+      const rule = new DeclarationBuilder(
+        this.options,
+        this.currentMapping,
+        this.remBase,
+      );
       for (const declaration of frame.declarations.declarations) {
         parseDeclaration(declaration, rule);
       }
@@ -206,10 +222,10 @@ export class CompilerStyleSheet {
     }
     const [vr, vu] = this.variableSets;
     if (Object.keys(vr).length > 0) {
-      stylesheet.vr = vr as NonNullable<HybridStyleSheet["vr"]>;
+      stylesheet.vr = vr as unknown as NonNullable<HybridStyleSheet["vr"]>;
     }
     if (Object.keys(vu).length > 0) {
-      stylesheet.vu = vu as NonNullable<HybridStyleSheet["vu"]>;
+      stylesheet.vu = vu as unknown as NonNullable<HybridStyleSheet["vu"]>;
     }
     return stylesheet;
   }
@@ -233,7 +249,7 @@ export class CompilerStyleSheet {
     // A font-size on :root also sets the runtime's rem base.
     const vars = { ...(rule.v ?? {}) };
     if (rule.d) {
-      const fontSize = rule.d?.["fontSize"];
+      const fontSize = rule.d.fontSize;
       if (fontSize !== undefined) {
         vars["__rn-css-rem"] = fontSize;
       }
@@ -246,7 +262,7 @@ export class CompilerStyleSheet {
 
     // :root font-size declares the rem base for the whole stylesheet
     if (rule.d) {
-      const fontSize = rule.d["fontSize"];
+      const fontSize = rule.d.fontSize;
       if (typeof fontSize === "number") {
         this.remBase = fontSize;
         target["__rn-css-rem"] = [{ v: fontSize }];
@@ -267,7 +283,10 @@ export class CompilerStyleSheet {
   private currentMediaConditions(
     selector:
       | { type: "className" }
-      | { type: "rootVariables" | "universalVariables"; subtype: "light" | "dark" },
+      | {
+          type: "rootVariables" | "universalVariables";
+          subtype: "light" | "dark";
+        },
   ): AnyMap | undefined {
     const conditions: AnyMap[] = this.mediaStack.flat();
     if (selector.type !== "className" && selector.subtype === "dark") {
@@ -321,12 +340,20 @@ export class CompilerStyleSheet {
       if (selector.pseudoClassesQuery) {
         rule.pq = { ...rule.pq, ...selector.pseudoClassesQuery };
       }
-      if (selector.attributeQuery) {
-        // Generated rules target component props (AttributeQuery.a); data-*
-        // attribute handling is not differentiated yet
-        rule.aq = { a: [...selector.attributeQuery] };
+      if (selector.attributeQuery || selector.dataQuery) {
+        // Regular rules target component props (AttributeQuery.a); data-*
+        // rules target props.dataSet (AttributeQuery.d)
+        rule.aq = {
+          ...(selector.attributeQuery
+            ? { a: [...selector.attributeQuery] }
+            : {}),
+          ...(selector.dataQuery ? { d: [...selector.dataQuery] } : {}),
+        };
         // Stable id so the runtime can dedupe identical queries across rules
-        rule.id = `aq-${attributeQueryId(selector.attributeQuery)}`;
+        rule.id = `aq-${attributeQueryId([
+          ...(selector.attributeQuery ?? []),
+          ...(selector.dataQuery ?? []),
+        ])}`;
       }
     }
 

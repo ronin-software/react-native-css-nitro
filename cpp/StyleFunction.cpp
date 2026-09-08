@@ -77,6 +77,95 @@ namespace margelo::nitro::cssnitro {
 
         using calc::Value;
 
+        // Parse hex/rgb/rgba strings and the common named colors into
+        // {r, g, b, a} components in [0,1]. Colors beyond this set are
+        // handled at compile time (colorjs.io inlining).
+        bool parseColorString(const std::string &input, std::array<double, 4> &out) {
+            static const std::unordered_map<std::string, std::array<double, 4>> named = {
+                {"black", {0, 0, 0, 1}},     {"white", {1, 1, 1, 1}},
+                {"red", {1, 0, 0, 1}},       {"green", {0, 0.502, 0, 1}},
+                {"blue", {0, 0, 1, 1}},      {"yellow", {1, 1, 0, 1}},
+                {"orange", {1, 0.647, 0, 1}}, {"purple", {0.502, 0, 0.502, 1}},
+                {"pink", {1, 0.753, 0.796, 1}}, {"gray", {0.502, 0.502, 0.502, 1}},
+                {"grey", {0.502, 0.502, 0.502, 1}}, {"brown", {0.647, 0.165, 0.165, 1}},
+                {"transparent", {0, 0, 0, 0}},
+            };
+
+            auto hexValue = [](char c) -> int {
+                if (c >= '0' && c <= '9') return c - '0';
+                if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+                if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+                return -1;
+            };
+
+            std::string s = input;
+            std::transform(s.begin(), s.end(), s.begin(),
+                           [](unsigned char c) { return std::tolower(c); });
+
+            if (!s.empty() && s[0] == '#') {
+                std::string hex = s.substr(1);
+                if (hex.size() == 3 || hex.size() == 4) {
+                    std::string expanded;
+                    for (char c: hex) {
+                        int v = hexValue(c);
+                        if (v < 0) return false;
+                        expanded += char('0' + v);
+                        expanded += char('0' + v);
+                    }
+                    hex = expanded;
+                }
+                if (hex.size() != 6 && hex.size() != 8) return false;
+                auto byte = [&](size_t i) -> double {
+                    int hi = hexValue(hex[i]);
+                    int lo = hexValue(hex[i + 1]);
+                    return (hi * 16 + lo) / 255.0;
+                };
+                out = {byte(0), byte(2), byte(4),
+                       hex.size() == 8 ? byte(6) : 1.0};
+                return true;
+            }
+
+            if (named.count(s) > 0) {
+                out = named.at(s);
+                return true;
+            }
+
+            // rgb()/rgba()
+            if (s.rfind("rgb", 0) == 0) {
+                size_t open = s.find('(');
+                size_t close = s.rfind(')');
+                if (open == std::string::npos || close == std::string::npos) {
+                    return false;
+                }
+                std::string body = s.substr(open + 1, close - open - 1);
+                std::array<double, 4> parts = {0, 0, 0, 1};
+                size_t idx = 0;
+                size_t pos = 0;
+                while (idx < 4 && pos < body.size()) {
+                    size_t next = body.find(',', pos);
+                    std::string part = body.substr(
+                        pos, next == std::string::npos ? std::string::npos : next - pos);
+                    // Percentage form
+                    if (!part.empty() && part.back() == '%') {
+                        parts[idx] = std::atof(part.c_str()) / 100.0;
+                    } else {
+                        parts[idx] = std::atof(part.c_str()) / 255.0;
+                    }
+                    if (idx == 3) {
+                        // Alpha is 0-1, not 0-255
+                        parts[3] = std::atof(part.c_str());
+                    }
+                    if (next == std::string::npos) break;
+                    pos = next + 1;
+                    idx++;
+                }
+                out = parts;
+                return true;
+            }
+
+            return false;
+        }
+
         // Resolve a single fn argument that may itself be a var() or nested fn
         AnyValue resolveStyleValueArg(const AnyValue &value,
                                       reactnativecss::Effect::GetProxy &get,
@@ -379,6 +468,163 @@ namespace margelo::nitro::cssnitro {
             wrapper["dropShadow"] = std::move(dropShadow);
             filter.push_back(AnyValue(std::move(wrapper)));
             return AnyValue(std::move(filter));
+        }
+
+        // text-shadow from runtime variables:
+        // ["fn", "textShadow", <tokens>] where tokens are the
+        // whitespace-separated shadow parts, matched against upstream's
+        // shorthand patterns: [w,h,blur,color], [color,w,h,blur],
+        // [w,h,color], [color,w,h], [w,h].
+        if (name == "textShadow" && fnArgs.size() >= 3) {
+            AnyArray tokens;
+
+            for (size_t i = 2; i < fnArgs.size(); i++) {
+                // Compiler flattens nested fns — text-shadow(var(--x)) arrives
+                // as ["fn","textShadow","fn","var","x"]. Rebuild + resolve.
+                if (std::holds_alternative<std::string>(fnArgs[i]) &&
+                    std::get<std::string>(fnArgs[i]) == "fn" &&
+                    i + 2 < fnArgs.size() &&
+                    std::holds_alternative<std::string>(fnArgs[i + 1]) &&
+                    std::get<std::string>(fnArgs[i + 1]) == "var") {
+                    AnyArray varFn = {"fn", "var", fnArgs[i + 2]};
+                    AnyValue resolved = resolveStyleFn(varFn, get, variableScope);
+                    if (std::holds_alternative<AnyArray>(resolved)) {
+                        for (const auto &token: std::get<AnyArray>(resolved)) {
+                            tokens.push_back(token);
+                        }
+                    }
+                    i += 2;
+                    continue;
+                }
+
+                // A non-fn array is a raw token list (inlined variable value)
+                if (std::holds_alternative<AnyArray>(fnArgs[i])) {
+                    const auto &arr = std::get<AnyArray>(fnArgs[i]);
+                    bool isFn = !arr.empty() &&
+                                std::holds_alternative<std::string>(arr[0]) &&
+                                std::get<std::string>(arr[0]) == "fn";
+                    if (!isFn) {
+                        for (const auto &token: arr) {
+                            tokens.push_back(token);
+                        }
+                        continue;
+                    }
+                }
+
+                AnyValue resolved = resolveStyleValueArg(fnArgs[i], get, variableScope);
+                if (std::holds_alternative<AnyArray>(resolved)) {
+                    for (const auto &token: std::get<AnyArray>(resolved)) {
+                        AnyValue inner = resolveStyleValueArg(token, get, variableScope);
+                        if (!std::holds_alternative<std::monostate>(inner)) {
+                            tokens.push_back(std::move(inner));
+                        }
+                    }
+                } else if (!std::holds_alternative<std::monostate>(resolved)) {
+                    tokens.push_back(std::move(resolved));
+                }
+            }
+
+            auto isColor = [](const AnyValue &v) {
+                return std::holds_alternative<std::string>(v) ||
+                       std::holds_alternative<AnyObject>(v);
+            };
+            auto asNumber = [](const AnyValue &v) -> double {
+                if (std::holds_alternative<double>(v)) return std::get<double>(v);
+                if (std::holds_alternative<int64_t>(v))
+                    return static_cast<double>(std::get<int64_t>(v));
+                return 0.0;
+            };
+
+            double width = 0;
+            double height = 0;
+            AnyValue blur = AnyValue(0.0);
+            AnyValue color;
+
+            if (tokens.size() >= 2) {
+                if (isColor(tokens[0])) {
+                    // [color, w, h, (blur)]
+                    color = tokens[0];
+                    width = asNumber(tokens[1]);
+                    height = tokens.size() > 2 ? asNumber(tokens[2]) : 0;
+                    blur = tokens.size() > 3 ? tokens[3] : AnyValue(0.0);
+                } else {
+                    // [w, h] / [w, h, blur] / [w, h, blur, color]
+                    width = asNumber(tokens[0]);
+                    height = asNumber(tokens[1]);
+                    if (tokens.size() > 2 && !isColor(tokens[2])) {
+                        blur = tokens[2];
+                    }
+                    if (tokens.size() > 3 && isColor(tokens[3])) {
+                        color = tokens[3];
+                    } else if (tokens.size() > 2 && isColor(tokens[2])) {
+                        color = tokens[2];
+                    }
+                }
+            }
+
+            if (std::holds_alternative<std::monostate>(color)) {
+                // Default color is currentcolor → the platform label color
+                color = resolveVar("__rn-css-color", AnyValue(), get, variableScope);
+            }
+
+            AnyObject offset;
+            offset["width"] = AnyValue(width);
+            offset["height"] = AnyValue(height);
+
+            AnyObject textShadow;
+            textShadow["textShadowColor"] = std::move(color);
+            textShadow["textShadowOffset"] = AnyValue(std::move(offset));
+            textShadow["textShadowRadius"] = std::move(blur);
+
+            return AnyValue(std::move(textShadow));
+        }
+
+        // color-mix from runtime variables:
+        // ["fn","colorMix", space, left, leftPct?, right?, rightPct?] — the
+        // compiler folds a `transparent` right side into the 3-arg form, the
+        // dominant Tailwind opacity-modifier pattern. Mixing two runtime
+        // colors in non-sRGB spaces is not supported C++-side (compile-time
+        // inlining covers static cases).
+        if (name == "colorMix" && fnArgs.size() >= 5) {
+            const auto space = fnArgs[2];
+            const std::string *spaceStr = std::get_if<std::string>(&space);
+            if (!spaceStr) {
+                return AnyValue();
+            }
+            AnyValue left = resolveStyleValueArg(fnArgs[3], get, variableScope);
+            const std::string *leftStr = std::get_if<std::string>(&left);
+            if (!leftStr) {
+                return AnyValue();
+            }
+            const std::string *leftPct = fnArgs.size() > 4
+                                             ? std::get_if<std::string>(&fnArgs[4])
+                                             : nullptr;
+
+            // Right side present with a non-transparent color — unsupported
+            if (fnArgs.size() > 5) {
+                AnyValue right = resolveStyleValueArg(fnArgs[5], get, variableScope);
+                const std::string *rightStr = std::get_if<std::string>(&right);
+                if (rightStr && *rightStr != "transparent") {
+                    return AnyValue();
+                }
+            }
+
+            std::array<double, 4> rgba;
+            if (!parseColorString(*leftStr, rgba)) {
+                return AnyValue();
+            }
+            double alpha = rgba[3];
+            if (leftPct && leftPct->size() > 1 && leftPct->back() == '%') {
+                alpha = std::atof(leftPct->c_str()) / 100.0;
+            }
+            // Trim trailing zeros so the alpha serializes like JS does
+            char alphaBuf[16];
+            snprintf(alphaBuf, sizeof(alphaBuf), "%g", alpha);
+            std::string out = "rgba(" + std::to_string((int) std::round(rgba[0] * 255)) + ", " +
+                              std::to_string((int) std::round(rgba[1] * 255)) + ", " +
+                              std::to_string((int) std::round(rgba[2] * 255)) + ", " +
+                              alphaBuf + ")";
+            return AnyValue(out);
         }
 
         // Platform/display metrics, mirroring upstream's runtime resolvers

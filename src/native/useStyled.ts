@@ -6,7 +6,11 @@ import {
   type PseudoClassType,
 } from "../specs/StyleRegistry";
 import { testAttributeQuery } from "./attributeQuery";
-import { ContainerContext, VariableContext, VariableValuesContext } from "./contexts";
+import {
+  ContainerContext,
+  VariableContext,
+  VariableValuesContext,
+} from "./contexts";
 
 const EMPTY_DECLARATIONS: Declarations = {};
 const renderCount = new Map<unknown, number>();
@@ -50,14 +54,23 @@ function extractMarkers(
         collectVars(item, variables);
         continue;
       }
-      const cleanedChild = extractMarkers(item, classNames, variables, undefined, nextDepth, seenSet);
-      // Drop items that lost all their properties to filtering
+      const cleanedChild = extractMarkers(
+        item,
+        classNames,
+        variables,
+        undefined,
+        nextDepth,
+        seenSet,
+      );
+      // Drop items that lost all their properties to filtering (a widened
+      // local so the null/object checks stay honest — cleanedChild is any[])
+      const child: unknown = cleanedChild;
       if (
-        cleanedChild === undefined ||
-        (cleanedChild !== null &&
-          typeof cleanedChild === "object" &&
-          !Array.isArray(cleanedChild) &&
-          Object.keys(cleanedChild).length === 0)
+        child === undefined ||
+        (child !== null &&
+          typeof child === "object" &&
+          !Array.isArray(child) &&
+          Object.keys(child).length === 0)
       ) {
         continue;
       }
@@ -95,14 +108,28 @@ function extractMarkers(
           collectVars(item as Record<string, any>, variables);
           continue;
         }
-        const cleanedChild = extractMarkers(item, classNames, variables, undefined, nextDepth, seenSet);
+        const cleanedChild = extractMarkers(
+          item,
+          classNames,
+          variables,
+          undefined,
+          nextDepth,
+          seenSet,
+        );
         cleanedArray.push(cleanedChild);
       }
       cleaned[key] = cleanedArray;
       continue;
     }
     if (value !== null && typeof value === "object") {
-      const cleanedChild = extractMarkers(value, classNames, variables, undefined, nextDepth, seenSet);
+      const cleanedChild = extractMarkers(
+        value,
+        classNames,
+        variables,
+        undefined,
+        nextDepth,
+        seenSet,
+      );
       if (cleanedChild !== undefined) {
         cleaned[key] = cleanedChild;
       }
@@ -156,9 +183,18 @@ export function useStyledProps(
     registry.resumeRender?.();
   });
 
-  if (process.env.NW_TRACE || (globalThis as { __NW_TRACE__?: boolean }).__NW_TRACE__) {
+  if (
+    process.env.NW_TRACE ||
+    (globalThis as { __NW_TRACE__?: boolean }).__NW_TRACE__
+  ) {
     renderCount.set(instance, (renderCount.get(instance) ?? 0) + 1);
-    console.log('RENDER', componentId, JSON.stringify(className), 'x', renderCount.get(instance));
+    console.log(
+      "RENDER",
+      componentId,
+      JSON.stringify(className),
+      "x",
+      renderCount.get(instance),
+    );
   }
 
   let variableScope = use(VariableContext);
@@ -189,12 +225,15 @@ export function useStyledProps(
   const effectiveClassName =
     className && extraClassNames.length
       ? `${className} ${extraClassNames.join(" ")}`
-      : className || extraClassNames.join(" ") || undefined;
+      : className !== undefined
+        ? className
+        : extraClassNames.length > 0
+          ? extraClassNames.join(" ")
+          : undefined;
 
   const inlineVarsKey = JSON.stringify(inlineVariables);
   useEffect(() => {
     StyleRegistry.updateComponentInlineVariables(componentId, inlineVariables);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [componentId, inlineVarsKey]);
 
   const declarations = effectiveClassName
@@ -213,26 +252,40 @@ export function useStyledProps(
   const publishable: Record<string, string | number | boolean> = {};
   for (const [key, value] of Object.entries(originalProps)) {
     if (
+      typeof value !== "undefined" &&
       (typeof value === "string" ||
         typeof value === "number" ||
-        typeof value === "boolean") &&
-      value !== undefined
+        typeof value === "boolean")
     ) {
       publishable[key] = value;
     }
   }
-  (StyleRegistry as {
-    updateComponentAttributes?: (
-      id: string,
-      attrs: Record<string, unknown>,
-    ) => void;
-  }).updateComponentAttributes?.(componentId, publishable);
+  (
+    StyleRegistry as {
+      updateComponentAttributes?: (
+        id: string,
+        attrs: Record<string, unknown>,
+      ) => void;
+    }
+  ).updateComponentAttributes?.(componentId, publishable);
 
   let validAttributeQueryIds = "";
 
   if (declarations.attributeQueries) {
     for (const [id, query] of declarations.attributeQueries) {
-      if (testAttributeQuery(originalProps, query, isDisabled)) {
+      const pass = testAttributeQuery(originalProps, query, isDisabled);
+      if (process.env.NW_TRACE) {
+        console.log(
+          "AQ",
+          id,
+          JSON.stringify(query),
+          "pass:",
+          pass,
+          "props:",
+          JSON.stringify(originalProps),
+        );
+      }
+      if (pass) {
         validAttributeQueryIds += id + " ";
       }
     }
@@ -241,13 +294,21 @@ export function useStyledProps(
   // Update the variable scope after we have retrieved the declarations, so it uses its own scope
   variableScope = declarations.variableScope ?? variableScope;
 
-
   const componentData = useMemo(() => {
     if (!effectiveClassName) {
       return {};
     }
-    if (process.env.NW_TRACE || (globalThis as { __NW_TRACE__?: boolean }).__NW_TRACE__) {
-      console.log('REGISTER', componentId, JSON.stringify(effectiveClassName), 'cScope:', containerScope);
+    if (
+      process.env.NW_TRACE ||
+      (globalThis as { __NW_TRACE__?: boolean }).__NW_TRACE__
+    ) {
+      console.log(
+        "REGISTER",
+        componentId,
+        JSON.stringify(effectiveClassName),
+        "cScope:",
+        containerScope,
+      );
     }
 
     const validAttributeQueries = validAttributeQueryIds.split(" ");
@@ -295,14 +356,20 @@ export function useStyledProps(
     containerScope === componentId &&
     (declarations.containerScope !== undefined ||
       originalProps.className?.includes("/"));
+  const hasPseudo =
+    (declarations.active ?? false) ||
+    (declarations.hover ?? false) ||
+    (declarations.focus ?? false);
+  // Widened: originalProps is Record<string, any> and `any` leaks into the
+  // boolean chain below
+  const pressProps: Record<string, unknown> = originalProps;
+  const isFn = (v: unknown) => typeof v === "function";
   const interactive =
-    declarations.active ||
-    declarations.hover ||
-    declarations.focus ||
+    hasPseudo ||
     isGroupContainer ||
-    typeof originalProps.onPress === "function" ||
-    typeof originalProps.onPressIn === "function" ||
-    typeof originalProps.onLongPress === "function";
+    isFn(pressProps.onPress) ||
+    isFn(pressProps.onPressIn) ||
+    isFn(pressProps.onLongPress);
 
   if (interactive) {
     const userOnPress = originalProps.onPress;
@@ -333,6 +400,9 @@ export function useStyledProps(
     cleanStyle,
     variableScope,
     containerScope,
+    interactive,
+    /** Container components need layout events for container queries */
+    needsLayout: declarations.containerScope !== undefined,
   };
 }
 

@@ -54,7 +54,7 @@ export function maybeMutateReactNativeOptions(
       idents[1] === "darkMode" &&
       idents[2] === "class"
     ) {
-      options.darkMode = idents[3] || "dark";
+      options.darkMode = idents[3] ?? "dark";
     }
     return;
   }
@@ -81,7 +81,7 @@ export function maybeMutateReactNativeOptions(
       idents[1] === "darkMode" &&
       idents[2] === "class"
     ) {
-      options.darkMode = idents[3] || "dark";
+      options.darkMode = idents[3] ?? "dark";
     }
   }
 }
@@ -101,7 +101,8 @@ function serializeTokens(value: unknown): string {
     return "";
   }
   if ((value as { type?: string }).type === "repeated") {
-    const components = (value as { value: { components: unknown[] } }).value.components;
+    const components = (value as { value: { components: unknown[] } }).value
+      .components;
     return components.map(serializeTokens).join(" ");
   }
   return "";
