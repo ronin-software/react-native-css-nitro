@@ -10,7 +10,8 @@ stays TypeScript (this repo has its own, canonical for the 4.0 line); the
 runtime is C++ via Nitro Modules. NativeWind v5 preview consumes the runtime
 API surface — see "NativeWind contract" below.
 
-Branch: `v4` is the active integration branch. Do not force-push.
+Branch: `main` tracks the integration line (upstream `main` is the base, do
+not force-push); `v4` is the working branch — they are kept in sync.
 
 ## Commands
 
