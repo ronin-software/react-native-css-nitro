@@ -32,6 +32,9 @@ export interface StyledOptions {
 export interface Config {
   source: string;
   target: string[] | string | false;
+  /** Style keys extracted into the component's own props (e.g. TextInput's
+   * textAlign) instead of staying in the style object */
+  nativeStyleMapping?: Record<string, string | boolean>;
 }
 
 /** Port of upstream mappingToConfig: {className: "style"} → configs */
@@ -51,15 +54,19 @@ export function mappingToConfig(mapping: StyledConfiguration): Config[] {
     }
     if (typeof value === "object" && value !== null && "target" in value) {
       // object form: { target, nativeStyleMapping? }
-      const target = (value as { target: unknown }).target;
+      const { target, nativeStyleMapping } = value as {
+        target: unknown;
+        nativeStyleMapping?: Record<string, string | boolean>;
+      };
+      const native = nativeStyleMapping as Config["nativeStyleMapping"];
       if (target === false) {
-        return [{ source: key, target: false }];
+        return [{ source: key, target: false, nativeStyleMapping: native }];
       }
       if (typeof target === "string") {
-        return [{ source: key, target: target.split(".") }];
+        return [{ source: key, target: target.split("."), nativeStyleMapping: native }];
       }
       if (Array.isArray(target)) {
-        return [{ source: key, target }];
+        return [{ source: key, target, nativeStyleMapping: native }];
       }
     }
     return [];
@@ -194,7 +201,27 @@ export function useStyledComponent(
     // (Non-primary pass-through className markers are rare and unresolved.)
     const collected = { classNames: [], variables: {} };
     const userClean = stripStyleMarkers(out[target], collected);
-    out[target] = mergeStylesWithInline(userClean, styled);
+    const merged = mergeStylesWithInline(userClean, styled);
+
+    // nativeStyleMapping: extract style keys into the component's own props
+    // (e.g. { textAlign: true } moves style.textAlign → props.textAlign).
+    // Boolean true maps the key to itself; a string maps to a different prop.
+    if (config.nativeStyleMapping && !Array.isArray(merged)) {
+      for (const [styleKey, propOrFlag] of Object.entries(config.nativeStyleMapping)) {
+        const styles = Array.isArray(merged) ? merged : [merged];
+        for (const s of styles) {
+          if (s && typeof s === "object" && styleKey in s) {
+            const extracted = s[styleKey];
+            delete s[styleKey];
+            if (extracted !== undefined) {
+              out[typeof propOrFlag === "string" ? propOrFlag : styleKey] = extracted;
+            }
+          }
+        }
+      }
+    }
+
+    out[target] = merged;
   }
 
   return createElement(type, out);

@@ -56,8 +56,9 @@ describe("scale", () => {
       <View testID={testID} className="my-class" />,
     ).getByTestId(testID);
 
+    // CSS percent scale converts to a numeric RN transform factor
     expect(component.props.style).toStrictEqual({
-      transform: [{ scaleX: "2%" }, { scaleY: "2%" }],
+      transform: [{ scaleX: 0.02 }, { scaleY: 0.02 }],
     });
   });
 

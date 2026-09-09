@@ -199,13 +199,26 @@ namespace margelo::nitro::cssnitro {
 
             // Handle transform properties
             if (transformProps.count(kv.first) > 0) {
+                // Scale props take numeric factors in RN transforms; the
+                // compiler emits CSS percentages ("50%") — convert here
+                AnyValue value = kv.second;
+                static const std::unordered_set<std::string> scaleProps = {
+                        "scale", "scaleX", "scaleY", "scaleZ"};
+                if (scaleProps.count(kv.first) > 0 &&
+                    std::holds_alternative<std::string>(value)) {
+                    const std::string &s = std::get<std::string>(value);
+                    if (!s.empty() && s.back() == '%') {
+                        value = AnyValue(std::atof(s.c_str()) / 100.0);
+                    }
+                }
+
                 // Find the value in the array with the key matching kv.first and set it to kv.second
                 bool foundTransform = false;
                 for (size_t i = 0; i < transformArray.size(); i++) {
                     if (std::holds_alternative<AnyObject>(transformArray[i])) {
                         auto obj = std::get<AnyObject>(transformArray[i]);
                         if (obj.count(kv.first) > 0) {
-                            obj[kv.first] = kv.second;
+                            obj[kv.first] = value;
                             transformArray[i] = obj;
                             foundTransform = true;
                             break;
@@ -216,7 +229,7 @@ namespace margelo::nitro::cssnitro {
                 // If transform property not found in array, add a new transform object
                 if (!foundTransform) {
                     AnyObject transformObj;
-                    transformObj[kv.first] = kv.second;
+                    transformObj[kv.first] = value;
                     transformArray.emplace_back(transformObj);
                 }
                 continue;

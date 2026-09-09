@@ -326,7 +326,9 @@ export class SelectorParser {
   ): AttributeQueryRule | null {
     const attributeName = component.name.startsWith("data-")
       ? toRNProperty(component.name.replace("data-", ""))
-      : toRNProperty(component.name);
+      : component.name.startsWith("aria-")
+        ? component.name
+        : toRNProperty(component.name);
 
     if (component.operation) {
       const operator = this.mapAttributeOperator(component.operation.operator);

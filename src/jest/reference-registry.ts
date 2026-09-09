@@ -823,13 +823,19 @@ export class ReferenceRegistry {
       "perspective",
     ]);
     const transform: Record<string, AnyValue>[] = [];
+    // Scale props take numeric factors in RN transforms; the compiler emits
+    // CSS percentages ("50%") per the CSS spec — convert here
+    const scaleProps = new Set(["scale", "scaleX", "scaleY", "scaleZ"]);
     for (const key of Object.keys(style)) {
       if (!transformProps.has(key)) {
         continue;
       }
-      const value = style[key];
+      let value = style[key];
       if (value === undefined) {
         continue;
+      }
+      if (scaleProps.has(key) && typeof value === "string" && value.endsWith("%")) {
+        value = parseFloat(value) / 100;
       }
       // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
       delete style[key];
