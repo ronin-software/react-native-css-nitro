@@ -126,7 +126,5 @@ Four layers, all green — "done" means the lowest layer that can falsify it:
    shadow-write assertion (`example/.e2e/`)
 
 Engine compatibility with the Nativewind v5 stack is being verified
-independently in
-[ronin-software/nativewind-compatibility](https://github.com/ronin-software/nativewind-compatibility)
-— see `docs/react-native-css-4-dispositions.md` there for the current
-disposition of upstream v5 findings.
+independently in a private compatibility-audit repository (dispositions of
+upstream v5 findings mirrored in `NATIVEWIND_HANDOFF.md`).
